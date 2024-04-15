@@ -1,0 +1,6 @@
+.gradle/
+build/
+gradle/
+application.pid
+src/main/resources/jks/
+src/main/resources/static/
