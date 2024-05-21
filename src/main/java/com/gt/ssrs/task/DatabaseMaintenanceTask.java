@@ -35,7 +35,8 @@ public class DatabaseMaintenanceTask {
     }
 
     private void purgeOldScheduledReviews() {
-        Instant cutoff = Instant.now().minus(purgeEventsAfterDays, ChronoUnit.DAYS);
+        // scheduled reviews are kept 1 day longer to avoid foreign key restraint issues
+        Instant cutoff = Instant.now().minus(purgeEventsAfterDays + 1, ChronoUnit.DAYS);
 
         int rowsDeleted = reviewSessionDao.purgeOldScheduledReviews(cutoff);
 
