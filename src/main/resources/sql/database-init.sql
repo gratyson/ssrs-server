@@ -782,9 +782,6 @@ CREATE TABLE IF NOT EXISTS user_config
 
 TABLESPACE pg_default;
 
-ALTER TABLE IF EXISTS user_config
-    OWNER to postgres;
-
 -- Trigger: RowCreateTimestamp
 
 -- DROP TRIGGER IF EXISTS "RowCreateTimestamp" ON user_config;
@@ -802,5 +799,45 @@ CREATE OR REPLACE TRIGGER "RowCreateTimestamp"
 CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
     BEFORE INSERT OR UPDATE 
     ON user_config
+    FOR EACH ROW
+    EXECUTE FUNCTION "RowUpdateTimestamp"();
+    
+    
+-- Table: user_notepad
+
+-- DROP TABLE IF EXISTS user_notepad;
+
+CREATE TABLE IF NOT EXISTS user_notepad
+(
+    username character varying(64) COLLATE pg_catalog."default" NOT NULL,
+    notepad_text character varying(1048576) COLLATE pg_catalog."default",
+    create_instant timestamp with time zone,
+    update_instant timestamp with time zone,
+    CONSTRAINT user_notepad_pkey PRIMARY KEY (username),
+    CONSTRAINT username FOREIGN KEY (username)
+        REFERENCES users (username) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+)
+
+TABLESPACE pg_default;
+
+-- Trigger: RowCreateTimestamp
+
+-- DROP TRIGGER IF EXISTS "RowCreateTimestamp" ON user_notepad;
+
+CREATE OR REPLACE TRIGGER "RowCreateTimestamp"
+    BEFORE INSERT
+    ON user_notepad
+    FOR EACH ROW
+    EXECUTE FUNCTION "RowCreateTimestamp"();
+
+-- Trigger: RowUpdateTimestamp
+
+-- DROP TRIGGER IF EXISTS "RowUpdateTimestamp" ON user_notepad;
+
+CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
+    BEFORE INSERT OR UPDATE 
+    ON user_notepad
     FOR EACH ROW
     EXECUTE FUNCTION "RowUpdateTimestamp"();
