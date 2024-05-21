@@ -31,8 +31,6 @@ public class WebConfig extends WebMvcAutoConfiguration implements WebMvcConfigur
         registry.addViewController("/app/**").setViewName("forward:/");
     }
 
-
-
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         if (allowedOrigin != null && !allowedOrigin.isBlank()) {

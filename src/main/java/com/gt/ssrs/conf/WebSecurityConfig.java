@@ -4,8 +4,11 @@ import com.gt.ssrs.filter.JwtAuthFilter;
 import jakarta.servlet.DispatcherType;
 import org.apache.catalina.Context;
 import org.apache.catalina.connector.Connector;
+import org.apache.coyote.ajp.AjpNioProtocol;
 import org.apache.tomcat.util.descriptor.web.SecurityCollection;
 import org.apache.tomcat.util.descriptor.web.SecurityConstraint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.servlet.server.ServletWebServerFactory;
@@ -28,11 +31,14 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.net.InetSocketAddress;
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class WebSecurityConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(WebSecurityConfig.class);
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
@@ -54,11 +60,6 @@ public class WebSecurityConfig {
                         .anyRequest().authenticated())
                 .logout((logout) -> logout.permitAll())
                 .addFilterAfter(jwtAuthFilter, LogoutFilter.class);
-                //.formLogin((form) -> form.loginPage("/app/login").permitAll())
-
-                //.httpBasic(Customizer.withDefaults())
-                //.rememberMe(Customizer.withDefaults())
-                //.formLogin(Customizer.withDefaults());
 
         return http.build();
     }
@@ -79,7 +80,10 @@ public class WebSecurityConfig {
 
     @Bean
     public ServletWebServerFactory servletContainer(@Value("${server.port.http}") int httpPort,
-                                                    @Value("${server.port}") int httpsPort) {
+                                                    @Value("${server.port}") int httpsPort,
+                                                    @Value("${ajp.port:0}") int ajpPort,
+                                                    @Value("${ajp.secret:}") String ajpSecret,
+                                                    @Value("${ajp.enabled:false}") boolean ajpEnabled) {
         TomcatServletWebServerFactory tomcat = new TomcatServletWebServerFactory() {
             @Override
             protected void postProcessContext(Context context) {
@@ -92,6 +96,15 @@ public class WebSecurityConfig {
             }
         };
         tomcat.addAdditionalTomcatConnectors(redirectConnector(httpPort, httpsPort));
+
+        if(ajpEnabled) {
+            if (ajpPort > 0 && !ajpSecret.isBlank()) {
+                tomcat.addAdditionalTomcatConnectors(ajpConnector(ajpPort, ajpSecret));
+            } else {
+                log.error("AJP connector is enabled but not configured properly.");
+            }
+        }
+
         return tomcat;
     }
 
@@ -102,5 +115,16 @@ public class WebSecurityConfig {
         connector.setSecure(false);
         connector.setRedirectPort(httpsPort);
         return connector;
+    }
+
+    private Connector ajpConnector(int ajpPort, String ajpSecret) {
+        Connector ajpConnector = new Connector("AJP/1.3");
+
+        AjpNioProtocol protocol= (AjpNioProtocol)ajpConnector.getProtocolHandler();
+        protocol.setSecret(ajpSecret);
+
+        ajpConnector.setPort(ajpPort);
+        ajpConnector.setSecure(true);
+        return ajpConnector;
     }
 }
