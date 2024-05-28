@@ -319,8 +319,6 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
     FOR EACH ROW
     EXECUTE FUNCTION "RowUpdateTimestamp"();
 
-
-
 -- Table: words
 
 -- DROP TABLE IF EXISTS words;
@@ -336,6 +334,7 @@ CREATE TABLE IF NOT EXISTS words
     attributes character varying(255) COLLATE pg_catalog."default",
     create_instant timestamp with time zone,
     update_instant timestamp with time zone,
+    create_seq_num bigint NOT NULL,
     CONSTRAINT word_pkey PRIMARY KEY (id)
 )
 
@@ -360,6 +359,21 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
     ON words
     FOR EACH ROW
     EXECUTE FUNCTION "RowUpdateTimestamp"();
+
+-- SEQUENCE: words_create_seq_num_seq
+
+-- DROP SEQUENCE IF EXISTS words_create_seq_num_seq;
+
+CREATE SEQUENCE IF NOT EXISTS words_create_seq_num_seq
+    INCREMENT 1
+    START 1
+    MINVALUE 1
+    MAXVALUE 2147483647
+    CACHE 1
+    OWNED BY words.create_seq_num;
+
+ALTER TABLE IF EXISTS words
+    ALTER COLUMN create_seq_num SET DEFAULT nextval('words_create_seq_num_seq'::regclass);
 
 
 -- Table: word_audio
@@ -453,6 +467,7 @@ CREATE TABLE IF NOT EXISTS lexicon_words
     word_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
     create_instant timestamp with time zone,
     update_instant timestamp with time zone,
+    create_seq_num bigint NOT NULL,
     CONSTRAINT lexicon_word_pkey PRIMARY KEY (lexicon_id, word_id)
 )
 
@@ -486,6 +501,22 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
     ON lexicon_words
     FOR EACH ROW
     EXECUTE FUNCTION "RowUpdateTimestamp"();
+
+
+-- SEQUENCE: ssrs_prod.lexicon_words_create_seq_num_seq
+
+-- DROP SEQUENCE IF EXISTS ssrs_prod.lexicon_words_create_seq_num_seq;
+
+CREATE SEQUENCE IF NOT EXISTS lexicon_words_create_seq_num_seq
+    INCREMENT 1
+    START 1
+    MINVALUE 1
+    MAXVALUE 9223372036854775807
+    CACHE 1
+    OWNED BY lexicon_words.create_seq_num;
+
+ALTER TABLE IF EXISTS lexicon_words
+    ALTER COLUMN create_seq_num SET DEFAULT nextval('lexicon_words_create_seq_num_seq'::regclass);
 
 
 -- Table: lexicon_review_history

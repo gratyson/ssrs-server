@@ -12,13 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -128,12 +126,11 @@ public class LexiconServiceTests {
         Word wordNotAttached = new Word(UUID.randomUUID().toString(), "", Map.of("kana", "g", "meaning", "g"), "g", List.of("g.mp3"));
         Word wordFailingValidation = new Word(UUID.randomUUID().toString(), "", Map.of("kana", "h"), "h", List.of("h.mp3"));
 
-        when(lexiconDao.createWords(eq(TEST_LANGUAGE), eq(TEST_LEXICON_METADATA.id()), anyList())).then(args -> {
-            return ((List<Word>)args.getArguments()[2]).stream().filter(word -> !word.id().equals(wordNotSaved.id())).toList();
-        });
-        when(lexiconDao.attachWordsToLexicon(eq(TEST_LEXICON_METADATA.id()), anyList(), eq(TEST_USERNAME))).then(args -> {
-           return ((List<Word>)args.getArguments()[1]).stream().filter(word -> !word.id().equals(wordNotAttached.id())).toList();
-        });
+        when(lexiconDao.createWords(eq(TEST_LANGUAGE), eq(TEST_LEXICON_METADATA.id()), anyList())).then(args ->
+                ((List<Word>)args.getArgument(2)).stream().filter(word -> !word.id().equals(wordNotSaved.id())).collect(Collectors.toList()));
+
+        when(lexiconDao.attachWordsToLexicon(eq(TEST_LEXICON_METADATA.id()), anyList(), eq(TEST_USERNAME))).then(args ->
+                ((List<Word>)args.getArgument(1)).stream().filter(word -> !word.id().equals(wordNotAttached.id())).collect(Collectors.toList()));
 
         List<Word> savedWords = lexiconService.saveWords(
                 List.of(wordWithId, wordWithIdAlreadyExists, wordWithIdDifferentOwner, wordNoIdNoDuplicate,

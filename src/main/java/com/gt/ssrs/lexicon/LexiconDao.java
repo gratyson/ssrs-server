@@ -34,9 +34,9 @@ public class LexiconDao {
 
 
     private static final String AUDIO_JOIN_PREFIX = "WITH words AS (";
-    private static final String AUDIO_JOIN_SUFFIX = ") SELECT * FROM words w LEFT JOIN word_audio a ON w.id = a.word_id ORDER BY w.create_instant DESC, w.id";
+    private static final String AUDIO_JOIN_SUFFIX = ") SELECT * FROM words w LEFT JOIN word_audio a ON w.id = a.word_id ORDER BY w.create_seq_num DESC";
     private static final String WORDS_QUERY_SQL =
-            "SELECT id, owner, attributes, " + String.join(", ", AVAILABLE_ELEMENTS) + ", create_instant " +
+            "SELECT id, owner, attributes, " + String.join(", ", AVAILABLE_ELEMENTS) + ", create_seq_num " +
             "FROM words " +
             "WHERE id IN (:wordIds)";
     private static final String CREATE_WORD_SQL_PREFIX =
@@ -84,12 +84,12 @@ public class LexiconDao {
     private static final String ATTACHED_LEXICON_COUNT_SQL =
             "SELECT COUNT(*) FROM lexicon_words WHERE word_id = :wordId";
 
-    private static final String WORDS_BATCH_QUERY_SQL = "SELECT w.id, w.owner, w.attributes, " + AVAILABLE_ELEMENTS.stream().map(e -> "w." + e).collect(Collectors.joining(", ")) + ", l.create_instant " +
+    private static final String WORDS_BATCH_QUERY_SQL = "SELECT w.id, w.owner, w.attributes, " + AVAILABLE_ELEMENTS.stream().map(e -> "w." + e).collect(Collectors.joining(", ")) + ", l.create_seq_num " +
             "FROM lexicon_words l LEFT JOIN words w on l.word_id = w.id " +
-            "WHERE l.lexicon_id = :lexiconId ORDER BY l.create_instant DESC OFFSET :offset LIMIT :count ";
+            "WHERE l.lexicon_id = :lexiconId ORDER BY l.create_seq_num DESC OFFSET :offset LIMIT :count ";
 
     private static final String WORDS_BATCH_QUERY_WITH_FILTER_SELECT_SQL_SELECT =
-            "SELECT word.id, word.owner, word.attributes, " + AVAILABLE_ELEMENTS.stream().map(e -> "word." + e).collect(Collectors.joining(", ")) + ", lexicon_words.create_instant " +
+            "SELECT word.id, word.owner, word.attributes, " + AVAILABLE_ELEMENTS.stream().map(e -> "word." + e).collect(Collectors.joining(", ")) + ", lexicon_words.create_seq_num " +
             "FROM lexicon_words lexicon_words " +
                     "LEFT JOIN words word ON lexicon_words.word_id = word.id " +
                     "LEFT JOIN lexicon_review_history history ON lexicon_words.lexicon_id = history.lexicon_id AND lexicon_words.word_id = history.word_id and history.username = :username ";
@@ -108,19 +108,19 @@ public class LexiconDao {
     private static final String WORDS_BATCH_QUERY_WITH_FILTER_SELECT_SQL_NOT_LEARNED =
             "AND history.learned IS NOT TRUE ";
     private static final String WORDS_BATCH_QUERY_WITH_FILTER_SELECT_SQL_ORDER_AND_LIMIT =
-            "ORDER BY lexicon_words.create_instant DESC OFFSET :offset LIMIT :count";
+            "ORDER BY lexicon_words.create_seq_num DESC OFFSET :offset LIMIT :count";
     private static final String ADD_WORD_TO_LEXICON_SQL = "INSERT INTO lexicon_words (lexicon_id, word_id) VALUES (:lexiconId, :wordId)";
 
     private static final String GET_WORDS_TO_LEARN_SQL =
             "WITH words AS " +
-                    "(SELECT w.id, w.owner, w.attributes, w." + String.join(", w.", AVAILABLE_ELEMENTS) + ", l.create_instant " +
+                    "(SELECT w.id, w.owner, w.attributes, w." + String.join(", w.", AVAILABLE_ELEMENTS) + ", l.create_seq_num " +
                     "FROM words w " +
                     "RIGHT JOIN lexicon_words l ON w.id = l.word_id " +
                     "LEFT JOIN lexicon_review_history h on l.word_id = h.word_id AND h.username = :username " +
                     "WHERE l.lexicon_id = :lexiconId AND h.learned IS NOT TRUE " +
-                    "ORDER BY l.create_instant ASC " +
+                    "ORDER BY l.create_seq_num ASC " +
                     "LIMIT :wordCnt) " +
-            "SELECT w.id, w.owner, w.attributes, w." + String.join(", w.", AVAILABLE_ELEMENTS) + ", a.audio_file_name FROM words w LEFT JOIN word_audio a ON w.id = a.word_id ORDER BY w.create_instant ASC";
+            "SELECT w.id, w.owner, w.attributes, w." + String.join(", w.", AVAILABLE_ELEMENTS) + ", a.audio_file_name FROM words w LEFT JOIN word_audio a ON w.id = a.word_id ORDER BY w.create_seq_num ASC";
 
     private static final String GET_WORDS_UNIQUE_TO_LEXICON_SQL =
             "SELECT word_id " +
@@ -245,10 +245,6 @@ public class LexiconDao {
             sb.append(String.format(CREATE_WORD_ELEMENTS_EXISTS_SQL, languageElement.id(), languageElement.id()));
         }
         sb.append(CREATE_WORD_CLOSING_SQL);
-        //sb.append("; ");
-        //sb.append(CREATE_LEXICON_WORD_ENTRY_IF_WORD_EXISTS_SQL);
-        //sb.append("; ");
-
         return sb.toString();
     }
 
@@ -584,14 +580,6 @@ public class LexiconDao {
                                           "maxDistance", maxDistance,
                                           "wordCnt", wordCnt),
                 (rs, rowNum) -> rs.getString(wordElement));
-    }
-
-    public void deleteLexiconHistoryBatch(String lexiconId, List<String> wordIds) {
-
-    }
-
-    public void adjustNextReviewTimes(String lexiconId, Duration adjustment) {
-
     }
 
     private List<String> nonEmptyIdList(List<String> idList) {
