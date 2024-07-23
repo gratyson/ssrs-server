@@ -15,8 +15,6 @@ public class SsrsApplication {
 		SpringApplication springApplication = new SpringApplication(SsrsApplication.class);
 		springApplication.addListeners(new ApplicationPidFileWriter());
 		springApplication.run(args);
-
-		//SpringApplication.run(SsrsApplication.class, args);
 	}
 
 }

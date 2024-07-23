@@ -17,7 +17,7 @@ END;
 $BODY$;
 
 COMMENT ON FUNCTION "RowCreateTimestamp"()
-    IS 'Sets the create_timestamp to the current time on row creation in the words table';
+    IS 'Sets the create_instant to the current time on row creation';
 
 
 -- FUNCTION: RowUpdateTimestamp()
@@ -37,7 +37,7 @@ END;
 $BODY$;
 
 COMMENT ON FUNCTION "RowUpdateTimestamp"()
-    IS 'Sets the update_timestamp column to the current time on the Words table';
+    IS 'Sets the update_instant column to the current time on row update';
 
 
 -- Table: audio

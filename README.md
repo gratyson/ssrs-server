@@ -4,6 +4,7 @@ Initial Setup
    * Run the `database-init.sql` script to create the necessary tables, etc. Update the schema name on the first line before running if another schema name is desired.
    * Run the language scripts (e.g. `japanese.sql`) to initialize the language data. 
    * Configure the `ssrs.datasource.postgres.url`, `ssrs.datasource.postgres.username`, and `ssrs.datasource.postgres.password` settings with appropriate information. The url needs to contain the schema (i.e. something like `jdbc:postgresql://localhost:5432/ssrs?currentSchema=my_schema`)
+   * Enable levenshtein: `CREATE EXTENSION fuzzystrmatch SCHEMA public` (requires `postgresql-contrib` to be installed)
 2. Create JWT key:
    * Generate a random key and base64 encode the key value
    * Set the encoded key value to `server.jwt.secret`

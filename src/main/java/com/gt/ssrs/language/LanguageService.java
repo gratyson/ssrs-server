@@ -27,7 +27,7 @@ public class LanguageService {
     }
 
     @Cacheable(CachingConfig.LANGUAGES)
-    public List<Language> GetAllLanguages() {
+    public List<Language> getAllLanguages() {
         List<DBLanguage> dbLanguages = languageDao.getAllLanguages();
         Map<String, WordElement> languageElements = languageDao.getAllLanguageElements().stream().collect(Collectors.toMap(le -> le.id(), le -> le));
         Map<Long, List<TestRelationship>> reviewRelationships = languageDao.getAllReviewRelationships();
@@ -55,7 +55,7 @@ public class LanguageService {
     }
 
     public Language GetLanguageById(long languageId) {
-        for(Language language : GetAllLanguages()) {
+        for(Language language : getAllLanguages()) {
             if (language.id() == languageId) {
                 return language;
             }

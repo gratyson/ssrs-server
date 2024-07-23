@@ -29,7 +29,7 @@ public class LanguageController {
 
     @GetMapping(value = "/allLanguages", produces = "application/json")
     public List<Language> getAllLanguages() {
-        return languageService.GetAllLanguages();
+        return languageService.getAllLanguages();
     }
 
 

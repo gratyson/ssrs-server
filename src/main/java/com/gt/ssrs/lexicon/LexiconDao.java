@@ -174,7 +174,7 @@ public class LexiconDao {
             "LIMIT :wordCnt";
 
 
-    private NamedParameterJdbcTemplate template;
+    private final NamedParameterJdbcTemplate template;
 
     @Autowired
     public LexiconDao(NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
@@ -221,6 +221,7 @@ public class LexiconDao {
                 "wordId", wordId,
                 "owner", owner));
     }
+
 
     public List<Word> attachWordsToLexicon(String lexiconId, List<Word> words, String owner) {
         List<MapSqlParameterSource> paramsList = new ArrayList<>();

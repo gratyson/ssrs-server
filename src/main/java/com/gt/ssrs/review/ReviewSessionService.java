@@ -230,11 +230,12 @@ public class ReviewSessionService {
         Lexicon lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
         Language language = languageService.GetLanguageById(lexiconMetadata.languageId());
 
-        if(maxWordCnt <= 0 || maxWordCnt > MAX_REVIEW_SIZE) {
+        if (maxWordCnt <= 0 || maxWordCnt > MAX_REVIEW_SIZE) {
             maxWordCnt = MAX_REVIEW_SIZE;
         }
 
         List<ScheduledWordReview> scheduledReviewWords = getWordsToReview(lexiconId, reviewRelationShip, cutoffInstant);
+
         if (scheduledReviewWords == null || scheduledReviewWords.size() == 0) {
             return List.of();
         }
@@ -244,7 +245,9 @@ public class ReviewSessionService {
         }
 
         List<String> scheduledWordIds = scheduledReviewWords.stream().map(scheduledWordReview -> scheduledWordReview.wordId()).toList();
+
         Map<String, Word> scheduledWordMap = lexiconService.loadWords(scheduledWordIds).stream().collect(Collectors.toMap(word -> word.id(), word -> word));
+
         return scheduledReviewWords.stream().map(scheduledReview -> buildWordReview(language, lexiconId, scheduledReview, scheduledWordMap.get(scheduledReview.wordId()))).toList();
     }
 
@@ -271,13 +274,16 @@ public class ReviewSessionService {
     }
 
     private boolean isFutureEventAllowed(DBScheduledReview dbScheduledReview, Instant now) {
-        return (dbScheduledReview.scheduledTestTime().toEpochMilli() - now.toEpochMilli()) < (dbScheduledReview.testDelay().toMillis() * futureEventAllowedRatio);
+        return (dbScheduledReview.scheduledTestTime().toEpochMilli() - now.toEpochMilli()) < (dbScheduledReview.testDelay().toMillis() * (1 - futureEventAllowedRatio));
     }
 
     private List<ScheduledWordReview> getWordsToReview(String lexiconId, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
         List<DBScheduledReview> scheduledReviews = getCurrentScheduledReviewForLexicon(lexiconId, reviewRelationship, cutoffInstant);
 
-        return scheduledReviews.stream().map(dbScheduledReview -> new ScheduledWordReview(dbScheduledReview.id(), dbScheduledReview.wordId(), dbScheduledReview.testRelationshipId(), ReviewType.Review)).toList();
+        return scheduledReviews
+                .stream()
+                .map(dbScheduledReview -> new ScheduledWordReview(dbScheduledReview.id(), dbScheduledReview.wordId(), dbScheduledReview.testRelationshipId(), ReviewType.Review))
+                .toList();
     }
 
     private WordReview buildWordReview(Language language, String lexiconId, ScheduledWordReview scheduledReview, Word word) {
