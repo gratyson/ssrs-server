@@ -16,7 +16,7 @@ BACKUP_FILE_NAME=$SSRS_BACKUP_DIR/ssrs_backup_$(date -I).dump.gz
 BACKUPS_TO_KEEP_CNT=3
 
 if [ -d $SSRS_BACKUP_DIR ]; then
-  pg_dump --role=pg_read_all_data --schema=$SSRS_SCHEMA -B -O -Fc | gzip > $BACKUP_FILE_NAME
+  pg_dump --role=pg_read_all_data --schema=$SSRS_SCHEMA -O -Fc | gzip > $BACKUP_FILE_NAME
 
   CUR_DIR=$PWD
   cd $SSRS_BACKUP_DIR
