@@ -6,11 +6,12 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SSRS_SERVER_DIR=$SCRIPT_DIR/..
 SSRS_CLIENT_DIR=$SCRIPT_DIR/../../ssrs-client
 SSRS_USER=ssrs
+BASE_HREF=/ssrs/
 
 $SCRIPT_DIR/stop.sh
 
 cd $SSRS_CLIENT_DIR
-ng build
+ng build --base-href $BASE_HREF
 if [ -n "$(ls -A $SSRS_SERVER_DIR/src/main/resources/static/ 2>/dev/null)" ]
 then
   rm -rf $SSRS_SERVER_DIR/src/main/resources/static/*
