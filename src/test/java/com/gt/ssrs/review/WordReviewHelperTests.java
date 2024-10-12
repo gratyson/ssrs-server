@@ -1,6 +1,7 @@
 package com.gt.ssrs.review;
 
 import com.gt.ssrs.lexicon.LexiconDao;
+import com.gt.ssrs.lexicon.model.TestOnWordPair;
 import com.gt.ssrs.model.Language;
 import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.Word;
@@ -61,18 +62,11 @@ public class WordReviewHelperTests {
     }
 
     @Test
-    public void testGetSimilarWordElementValues() {
-        when(lexiconDao.findSimilarWordElementValues(LEXICON_ID, "kana", KANA_ELEMENT_VALUE, WordReviewHelper.MAX_DISTANCE, WordReviewHelper.SIMILAR_WORD_CNT))
-                .thenReturn(SIMILAR_ELEMENT_VALUES);
+    public void testFindSimilarWordElementValuesBatch() {
+        when(lexiconDao.findSimilarWordElementValuesBatch(LEXICON_ID, List.of(new TestOnWordPair("kana", WORD)), WordReviewHelper.MAX_DISTANCE, WordReviewHelper.SIMILAR_WORD_CNT))
+                .thenReturn(Map.of("kana", Map.of(WORD.id(), SIMILAR_ELEMENT_VALUES)));
 
-        assertEquals(SIMILAR_ELEMENT_VALUES, wordReviewHelper.getSimilarWordElementValues(LEXICON_ID, WORD, "kana"));
-    }
-
-    @Test
-    public void testGetSimilarWordElementValues_BlankValue() {
-        assertEquals(List.of(), wordReviewHelper.getSimilarWordElementValues(LEXICON_ID, WORD, "addlKanji"));
-
-        verifyNoInteractions(lexiconDao);
+        assertEquals(Map.of("kana", Map.of(WORD.id(), SIMILAR_ELEMENT_VALUES)), wordReviewHelper.findSimilarWordElementValuesBatch(LEXICON_ID, List.of(new TestOnWordPair("kana", WORD))));
     }
 
     @Test

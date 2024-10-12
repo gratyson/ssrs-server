@@ -204,6 +204,10 @@ public class ReviewSessionDao {
     }
 
     public List<DBLexiconReviewHistory> getLexiconReviewHistoryBatch(String lexiconId, String username, Collection<String> wordIds) {
+        if (wordIds == null || wordIds.isEmpty()) {
+            return List.of();
+        }
+
         return template.query(GET_LEXICON_REVIEW_HISTORY_BATCH_SQL, Map.of("lexiconId", lexiconId, "wordIds", wordIds, "username", username), (rs) -> {
             List<DBLexiconReviewHistory> lexiconWordHistories = new ArrayList<>();
 

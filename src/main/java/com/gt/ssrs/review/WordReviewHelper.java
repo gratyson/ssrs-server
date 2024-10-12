@@ -1,6 +1,7 @@
 package com.gt.ssrs.review;
 
 import com.gt.ssrs.lexicon.LexiconDao;
+import com.gt.ssrs.lexicon.model.TestOnWordPair;
 import com.gt.ssrs.model.Language;
 import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.Word;
@@ -51,15 +52,8 @@ public class WordReviewHelper {
         return lexiconDao.getWordsToLearn(lexiconId, username, wordCnt);
     }
 
-    public List<String> getSimilarWordElementValues(String lexiconId, Word word, String element) {
-        String elementValue = word.elements().getOrDefault(element, "");
-
-        if (elementValue.isBlank()) {
-            log.warn("Unable to get similar values on word {} element {}. Element does not exist", word.id(), element);
-            return List.of();
-        }
-
-        return lexiconDao.findSimilarWordElementValues(lexiconId, element, elementValue, MAX_DISTANCE, SIMILAR_WORD_CNT);
+    public Map<String, Map<String, List<String>>> findSimilarWordElementValuesBatch(String lexiconId, Collection<TestOnWordPair> testOnWordPairs) {
+        return lexiconDao.findSimilarWordElementValuesBatch(lexiconId, testOnWordPairs, MAX_DISTANCE, SIMILAR_WORD_CNT);
     }
 
     public List<String> getSimilarCharacterSelection(Word word, String testOn, List<String> similarElementValues) {

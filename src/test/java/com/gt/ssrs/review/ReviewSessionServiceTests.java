@@ -2,6 +2,7 @@ package com.gt.ssrs.review;
 
 import com.gt.ssrs.language.LanguageService;
 import com.gt.ssrs.lexicon.LexiconService;
+import com.gt.ssrs.lexicon.model.TestOnWordPair;
 import com.gt.ssrs.review.model.DBReviewEvent;
 import com.gt.ssrs.review.model.DBScheduledReview;
 import com.gt.ssrs.model.*;
@@ -14,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -66,8 +68,17 @@ public class ReviewSessionServiceTests {
         when(wordReviewHelper.getWordAllowedTime(eq(TEST_LANGUAGE), any(Word.class), any(ReviewMode.class), anyString()))
                 .then(invoc -> calcAllowedTime(invoc.getArgument(1), invoc.getArgument(2), invoc.getArgument(3)));
 
-        when(wordReviewHelper.getSimilarWordElementValues(eq(TEST_LEXICON_ID), any(Word.class), anyString()))
-                .thenReturn(SIMILAR_ELEMENT_VALUES);
+        when(wordReviewHelper.findSimilarWordElementValuesBatch(eq(TEST_LEXICON_ID), anyCollection())).then(
+                v -> {
+                    Collection<TestOnWordPair> testOnWordPairs = v.getArgument(1);
+                    return testOnWordPairs
+                            .stream()
+                            .collect(Collectors.groupingBy(testOnWordPair -> testOnWordPair.testOn()))
+                            .entrySet().stream()
+                            .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()
+                                    .stream()
+                                    .collect(Collectors.toMap(testOnWordPair -> testOnWordPair.word().id(), testOnWordPair -> SIMILAR_ELEMENT_VALUES))));
+                });
 
         when(wordReviewHelper.getSimilarCharacterSelection(any(Word.class), anyString(), eq(SIMILAR_ELEMENT_VALUES)))
                 .then(invoc -> calcTypingTestButtons(invoc.getArgument(0), invoc.getArgument(1)));
