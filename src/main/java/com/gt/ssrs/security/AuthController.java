@@ -27,17 +27,20 @@ public class AuthController {
     private final JwtService jwtService;
     private final String jwtCookieName;
     private final long cookieExpirySec;
+    private final boolean allowUserRegistration;
 
     public AuthController(AuthenticationManager authenticationManager,
                           LocalUserDetailsManager localUserDetailsManager,
                           JwtService jwtService,
                           @Value("${server.jwt.cookieName}") String jwtCookieName,
-                          @Value("${server.jwt.cookieExpirySec}") long cookieExpirySec) {
+                          @Value("${server.jwt.cookieExpirySec}") long cookieExpirySec,
+                          @Value("${ssrs.security.allowUserRegistration}") boolean allowUserRegistration) {
         this.authenticationManager = authenticationManager;
         this.localUserDetailsManager = localUserDetailsManager;
         this.jwtService = jwtService;
         this.jwtCookieName = jwtCookieName;
         this.cookieExpirySec = cookieExpirySec;
+        this.allowUserRegistration = allowUserRegistration;
     }
 
     @GetMapping("/username")
@@ -66,8 +69,17 @@ public class AuthController {
         httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
+    @GetMapping("/canRegister")
+    public boolean canRegister() {
+        return allowUserRegistration;
+    }
+
     @PostMapping("/register")
     public RegisterResponse register(@RequestBody RegisterRequest registerRequest, HttpServletResponse httpServletResponse) {
+        if (!allowUserRegistration) {
+            return new RegisterResponse(false, "New users cannot be registered");
+        }
+
         try {
             localUserDetailsManager.createUser(registerRequest.username, registerRequest.password, registerRequest.reenterPassword);
         } catch (InvalidUserDetailsException ex) {
@@ -115,6 +127,5 @@ public class AuthController {
     private record LoginResponse(boolean success, String errMsg) { }
 
     private record RegisterRequest(String username, String password, String reenterPassword) { }
-
     private record RegisterResponse(boolean success, String errMsg) { }
 }

@@ -57,6 +57,7 @@ public class WebSecurityConfig {
                         .requestMatchers("/polyfills-*.js").permitAll()
                         .requestMatchers("/rest/auth/login").permitAll()
                         .requestMatchers("/rest/auth/register").permitAll()
+                        .requestMatchers("/rest/auth/canRegister").permitAll()
                         .anyRequest().authenticated())
                 .logout((logout) -> logout.permitAll())
                 .addFilterAfter(jwtAuthFilter, LogoutFilter.class);
