@@ -51,6 +51,55 @@ public class ReviewSessionService {
         reviewSessionDao.saveReviewEvent(DBReviewEvent.fromReviewEvent(event, username, eventInstant), event.scheduledEventId());
     }
 
+    public void recordManualEvent(ReviewEvent event, String username) {
+        log.warn(reviewSessionDao.loadScheduledReviewsForWords(event.lexiconId(), List.of(event.wordId())).toString());
+
+        Optional<DBScheduledReview> scheduledReviewForWord = reviewSessionDao.loadScheduledReviewsForWords(event.lexiconId(), List.of(event.wordId()))
+                .stream()
+                .filter(scheduledReview -> scheduledReview.reviewType().equals(ReviewType.Review) && !scheduledReview.completed())
+                .sorted(Comparator.comparing(DBScheduledReview::scheduledTestTime))
+                .findFirst();
+
+        if (scheduledReviewForWord.isEmpty()) {
+            log.warn("Manual event requested for word " + event.wordId() + ". However, no scheduled events exist for word.");
+            return;
+        }
+
+        TestRelationship scheduledTestRelationship = getTestRelationFromId(event.lexiconId(), scheduledReviewForWord.get().testRelationshipId());
+        if (scheduledTestRelationship == null) {
+            log.warn("Unknown relation scheduled for test " + scheduledReviewForWord.get().id());
+            return;
+        }
+
+        ReviewEvent reviewEventToSave = new ReviewEvent(
+                scheduledReviewForWord.get().id(),
+                event.lexiconId(),
+                event.wordId(),
+                event.reviewType(),
+                event.reviewMode(),
+                scheduledTestRelationship.testOn(),
+                scheduledTestRelationship.promptWith(),
+                event.isCorrect(),
+                event.isNearMiss(),
+                0,
+                false);
+
+        saveReviewEvent(reviewEventToSave, username, Instant.now());
+    }
+
+    private TestRelationship getTestRelationFromId(String lexiconId, String relationshipId) {
+        Lexicon lexicon = lexiconService.getLexiconMetadata(lexiconId);
+        Language language = languageService.GetLanguageById(lexicon.languageId());
+
+        for(TestRelationship testRelationship : language.testRelationships()) {
+            if (testRelationship.id().equals(relationshipId)) {
+                return testRelationship;
+            }
+        }
+
+        return null;
+    }
+
     public List<LexiconReviewHistory> getLexiconHistoryBatch(String lexiconId, String username, Collection<String> wordIds) {
         if (wordIds.isEmpty()) {
             return List.of();

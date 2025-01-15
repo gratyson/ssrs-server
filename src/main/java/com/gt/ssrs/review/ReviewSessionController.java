@@ -32,11 +32,18 @@ public class ReviewSessionController {
         this.reviewSessionService.saveReviewEvent(event, userDetails.getUsername(), Instant.now());
     }
 
+    @PostMapping("processManualEvent")
+    public void processManualEvent(@RequestBody ReviewEvent event,
+                                  @AuthenticationPrincipal UserDetails userDetails) {
+        this.reviewSessionService.recordManualEvent(event, userDetails.getUsername());
+        reviewEventProcessor.processEvents(userDetails.getUsername(), event.lexiconId());
+    }
+
     @PostMapping("generateLearningSession")
     public List<List<WordReview>> generateLearningSession(@RequestBody GenerateLearningSessionRequest request,
                                                           @AuthenticationPrincipal UserDetails userDetails,
                                                           HttpServletResponse response) {
-            return reviewSessionService.generateLearningSession(request.lexiconId(), request.wordCnt(), userDetails.getUsername());
+        return reviewSessionService.generateLearningSession(request.lexiconId(), request.wordCnt(), userDetails.getUsername());
     }
 
     @PostMapping("generateReviewSession")
