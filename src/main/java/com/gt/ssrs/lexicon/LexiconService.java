@@ -83,16 +83,16 @@ public class LexiconService {
                 Word existingWord = lexiconDao.loadWord(word.id());
 
                 if (existingWord == null) {
-                    wordToSave = new Word(word.id(), username, word.elements(), word.attributes(), word.audioFiles());
+                    wordToSave = buildWordToSave(word, username);
                 } else if (existingWord.owner().equals(username)) {
-                    wordToSave = new Word(word.id(), username, word.elements(), word.attributes(), existingWord.audioFiles());
+                    wordToSave = buildWordToSave(word, username, existingWord.audioFiles());
                 }
             } else {
                 Word duplicateWord = lexiconDao.findDuplicateWordInOtherLexicons(language, lexiconId, username, word);
                 if (duplicateWord != null) {
                     wordsToAttach.add(duplicateWord);
                 } else {
-                    wordToSave = new Word(UUID.randomUUID().toString(), username, word.elements(), word.attributes(), word.audioFiles());
+                    wordToSave = buildWordToSave(word, username);
                 }
             }
 
@@ -107,6 +107,22 @@ public class LexiconService {
         log.info("Saved {} new words in lexicon {}. {} duplicate words were skipped.", savedWords.size(), lexiconId, words.size() - savedWords.size());
 
         return savedWords;
+    }
+
+    private Word buildWordToSave(Word word, String username) {
+        return buildWordToSave(word, username, word.audioFiles());
+    }
+
+    private Word buildWordToSave(Word word, String username, List<String> audioFiles) {
+        Map<String, String> processedElements =
+                word.elements()
+                    .entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().strip()));
+
+        String wordId = word.id() != null && !word.id().isBlank() ? word.id() : UUID.randomUUID().toString();
+
+        return new Word(wordId, username, processedElements, word.attributes().strip(), audioFiles);
     }
 
     private boolean saveExistingWord(Word word) {
