@@ -67,7 +67,7 @@ public class ReviewEventProcessor {
             eventsByWord.forEach((wordId, eventList) -> {
                 Word word = words.get(wordId);
 
-                ProcessedHistoryAndNextReview processedHistoryAndNextReview = processWordEvents(lexiconId, language, word, histories.get(wordId), eventsByWord.get(wordId));
+                ProcessedHistoryAndNextReview processedHistoryAndNextReview = processWordEvents(lexiconId, username, language, word, histories.get(wordId), eventsByWord.get(wordId));
                 if (processedHistoryAndNextReview != null) {
                     if (processedHistoryAndNextReview.newHistory != null) {
                         newWordHistories.add(processedHistoryAndNextReview.newHistory);
@@ -78,12 +78,11 @@ public class ReviewEventProcessor {
                 }
             });
 
-            long daoStart = Instant.now().toEpochMilli();
             if (newWordHistories.size() > 0) {
                 reviewSessionDao.updateLexiconReviewHistoryBatch(username, newWordHistories);
             }
             if (newScheduledReviews.size() > 0) {
-                reviewSessionDao.createScheduledReviewsBatch(newScheduledReviews);
+                reviewSessionDao.createScheduledReviewsBatch(newScheduledReviews, username);
             }
             markEventsAsProcessed(allEvents);
         }
@@ -101,7 +100,7 @@ public class ReviewEventProcessor {
 
         List<FutureReviewEvent> futureReviewEvents = new ArrayList<>();
 
-        List<DBScheduledReview> scheduledReviews = reviewSessionDao.loadScheduledReviews(lexiconId, "", Optional.of(cutoff));
+        List<DBScheduledReview> scheduledReviews = reviewSessionDao.loadScheduledReviews(username, lexiconId, "", Optional.of(cutoff));
 
         Map<String, DBLexiconReviewHistory> reviewHistoryByWordId = reviewSessionDao.getLexiconReviewHistoryBatch(lexiconId, username,
                         scheduledReviews.stream().map(review -> review.wordId()).toList())
@@ -153,21 +152,21 @@ public class ReviewEventProcessor {
         return allEvents;
     }
 
-    private ProcessedHistoryAndNextReview processWordEvents(String lexiconId, Language language, Word word, DBLexiconReviewHistory wordHistory, List<DBReviewEvent> reviewEvents) {
+    private ProcessedHistoryAndNextReview processWordEvents(String lexiconId, String username, Language language, Word word, DBLexiconReviewHistory wordHistory, List<DBReviewEvent> reviewEvents) {
         Map<ReviewType, List<DBReviewEvent>> eventsByType = reviewEvents.stream().collect(Collectors.groupingBy(DBReviewEvent::reviewType));
 
         if (wordHistory != null && wordHistory.learned()) {
             if (eventsByType.containsKey(ReviewType.Review)) {
-                return processReviewEvents(lexiconId, language, word, eventsByType.get(ReviewType.Review), wordHistory);
+                return processReviewEvents(lexiconId, username, language, word, eventsByType.get(ReviewType.Review), wordHistory);
             }
         } else if (eventsByType.containsKey(ReviewType.Learn)) {
-            return processLearningEvents(lexiconId, language, word, eventsByType.get(ReviewType.Learn));
+            return processLearningEvents(lexiconId, username, language, word, eventsByType.get(ReviewType.Learn));
         }
 
         return null;
     }
 
-    private ProcessedHistoryAndNextReview processReviewEvents(String lexiconId, Language language, Word word, List<DBReviewEvent> reviewEvents, DBLexiconReviewHistory lexiconReviewHistory) {
+    private ProcessedHistoryAndNextReview processReviewEvents(String lexiconId, String username, Language language, Word word, List<DBReviewEvent> reviewEvents, DBLexiconReviewHistory lexiconReviewHistory) {
         List<DBReviewEvent> sortedEvents = new ArrayList<>(reviewEvents);
         sortedEvents.sort(Comparator.comparing(DBReviewEvent::eventInstant));
 
@@ -178,20 +177,20 @@ public class ReviewEventProcessor {
             }
         }
 
-        return processReviewEvent(lexiconId, language, word, eventToProcess, lexiconReviewHistory);
+        return processReviewEvent(lexiconId, username, language, word, eventToProcess, lexiconReviewHistory);
     }
 
-    private ProcessedHistoryAndNextReview processReviewEvent(String lexiconId, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory) {
+    private ProcessedHistoryAndNextReview processReviewEvent(String lexiconId, String username, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory) {
         String relationshipId = getTestRelationshipId(language, reviewEvent.testOn(), reviewEvent.promptWith());
 
         if (reviewEvent.isCorrect()) {
             if (reviewEvent.isNearMiss()) {
-                return processCorrectNearMissReviewEvent(lexiconId, language, word, reviewEvent, lexiconReviewHistory, relationshipId);
+                return processCorrectNearMissReviewEvent(lexiconId, username, language, word, reviewEvent, lexiconReviewHistory, relationshipId);
             } else {
-                return processCorrectReviewEvent(lexiconId, language, word, reviewEvent, lexiconReviewHistory, relationshipId);
+                return processCorrectReviewEvent(lexiconId, username, language, word, reviewEvent, lexiconReviewHistory, relationshipId);
             }
         } else {
-            return processIncorrectReviewEvent(lexiconId, language, word, reviewEvent, lexiconReviewHistory, relationshipId, reviewEvent.isNearMiss());
+            return processIncorrectReviewEvent(lexiconId, username, language, word, reviewEvent, lexiconReviewHistory, relationshipId, reviewEvent.isNearMiss());
         }
     }
 
@@ -206,7 +205,7 @@ public class ReviewEventProcessor {
         return null;
     }
 
-    private ProcessedHistoryAndNextReview processCorrectReviewEvent(String lexiconId, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory, String testRelationshipId) {
+    private ProcessedHistoryAndNextReview processCorrectReviewEvent(String lexiconId, String username, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory, String testRelationshipId) {
         Duration newTestDelay = calculateNextDelayAfterSuccessfulTest(language, lexiconReviewHistory);
         boolean isCurrentBoostExpired = newTestDelay.compareTo(lexiconReviewHistory.currentBoostExpirationDelay()) >= 0;
 
@@ -219,12 +218,12 @@ public class ReviewEventProcessor {
                 isCurrentBoostExpired ? 0 : lexiconReviewHistory.currentBoost(),
                 isCurrentBoostExpired ? null : lexiconReviewHistory.currentBoostExpirationDelay(),
                 updateTestHistory(lexiconReviewHistory.testHistory(), testRelationshipId, true));
-        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, word, reviewEvent, newTestDelay, newLexiconReviewHistory);
+        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, username, word, reviewEvent, newTestDelay, newLexiconReviewHistory);
 
         return new ProcessedHistoryAndNextReview(newLexiconReviewHistory, newScheduledReview);
     }
 
-    private ProcessedHistoryAndNextReview processIncorrectReviewEvent(String lexiconId, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory, String testRelationshipId, boolean isNearMiss) {
+    private ProcessedHistoryAndNextReview processIncorrectReviewEvent(String lexiconId, String username, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory, String testRelationshipId, boolean isNearMiss) {
         double boost = isNearMiss ? nearMissBoost : standardIncorrectBoost;
 
         Duration newTestDelay = Duration.ofSeconds(initialLearningDelaySec);
@@ -239,14 +238,14 @@ public class ReviewEventProcessor {
                 lexiconReviewHistory.currentTestDelay(),
                 updateTestHistory(lexiconReviewHistory.testHistory(), testRelationshipId, false));
 
-        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, word, reviewEvent, newTestDelay, newLexiconReviewHistory);
+        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, username, word, reviewEvent, newTestDelay, newLexiconReviewHistory);
 
         return new ProcessedHistoryAndNextReview(newLexiconReviewHistory, newScheduledReview);
     }
     
-    private ProcessedHistoryAndNextReview processCorrectNearMissReviewEvent(String lexiconId, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory, String testRelationshipId) {
+    private ProcessedHistoryAndNextReview processCorrectNearMissReviewEvent(String lexiconId, String username, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory, String testRelationshipId) {
         if (lexiconReviewHistory.currentTestDelay().getSeconds() < nearMissCorrectDelaySec) {
-            return processCorrectReviewEvent(lexiconId, language, word, reviewEvent, lexiconReviewHistory, testRelationshipId);
+            return processCorrectReviewEvent(lexiconId, username, language, word, reviewEvent, lexiconReviewHistory, testRelationshipId);
         }
 
         Duration newTestDelay = Duration.ofSeconds(nearMissCorrectDelaySec);
@@ -264,7 +263,7 @@ public class ReviewEventProcessor {
                 newBoostExpirationDelay,
                 updateTestHistory(lexiconReviewHistory.testHistory(), testRelationshipId, true));
 
-        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, word, reviewEvent, newTestDelay, newLexiconReviewHistory);
+        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, username, word, reviewEvent, newTestDelay, newLexiconReviewHistory);
         
         return new ProcessedHistoryAndNextReview(newLexiconReviewHistory, newScheduledReview);
     }
@@ -282,7 +281,7 @@ public class ReviewEventProcessor {
         return newTestHistory;
     }
 
-    private ProcessedHistoryAndNextReview processLearningEvents(String lexiconId, Language language, Word word, List<DBReviewEvent> reviewEvents) {
+    private ProcessedHistoryAndNextReview processLearningEvents(String lexiconId, String username, Language language, Word word, List<DBReviewEvent> reviewEvents) {
         List<DBReviewEvent> sortedEvents = new ArrayList<>(reviewEvents);
         sortedEvents.sort(Comparator.comparing(DBReviewEvent::eventInstant));
         DBReviewEvent eventToProcess = sortedEvents.get(sortedEvents.size() - 1);
@@ -299,7 +298,7 @@ public class ReviewEventProcessor {
                 null,
                 new HashMap<>());
 
-        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, word, eventToProcess, newTestDelay, newLexiconReviewHistory);
+        DBScheduledReview newScheduledReview = buildScheduledReview(language, lexiconId, username, word, eventToProcess, newTestDelay, newLexiconReviewHistory);
 
         return new ProcessedHistoryAndNextReview(newLexiconReviewHistory, newScheduledReview);
     }
@@ -337,9 +336,10 @@ public class ReviewEventProcessor {
         return Duration.ofSeconds((long)(currentTestDelay.getSeconds() * Math.pow(2, boost / testsToDoubleDelay)));
     }
 
-    private DBScheduledReview buildScheduledReview(Language language, String lexiconId, Word word, DBReviewEvent reviewEvent, Duration newTestDelay, DBLexiconReviewHistory history) {
+    private DBScheduledReview buildScheduledReview(Language language, String lexiconId, String username, Word word, DBReviewEvent reviewEvent, Duration newTestDelay, DBLexiconReviewHistory history) {
         return new DBScheduledReview(
                 UUID.randomUUID().toString(),
+                username,
                 lexiconId,
                 word.id(),
                 ReviewType.Review,
@@ -387,7 +387,5 @@ public class ReviewEventProcessor {
         return language.testRelationships().get(0);
     }
 
-    private static record ProcessedHistoryAndNextReview(DBLexiconReviewHistory newHistory, DBScheduledReview scheduledReview) { }
-
-
+    private record ProcessedHistoryAndNextReview(DBLexiconReviewHistory newHistory, DBScheduledReview scheduledReview) { }
 }

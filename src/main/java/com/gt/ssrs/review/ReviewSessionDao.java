@@ -49,21 +49,21 @@ public class ReviewSessionDao {
 
     private static final String CREATE_SCHEDULED_REVIEW_SQL =
             "INSERT INTO scheduled_review " +
-                "(id, lexicon_id, word_id, review_type, test_relationship_id, scheduled_test_time, test_delay_ms, completed) " +
-                "VALUES (:id, :lexiconId, :wordId, :reviewType, :testRelationshipId, :scheduledTestTime, :testDelayMs, :completed) " +
+                "(id, owner, lexicon_id, word_id, review_type, test_relationship_id, scheduled_test_time, test_delay_ms, completed) " +
+                "VALUES (:id, :owner, :lexiconId, :wordId, :reviewType, :testRelationshipId, :scheduledTestTime, :testDelayMs, :completed) " +
             "ON CONFLICT (id) DO UPDATE " +
-                "SET lexicon_id = :lexiconId, word_id = :wordId, review_type = :reviewType, test_relationship_id = :testRelationshipId, " +
+                "SET owner = :owner, lexicon_id = :lexiconId, word_id = :wordId, review_type = :reviewType, test_relationship_id = :testRelationshipId, " +
                     "scheduled_test_time = :scheduledTestTime, test_delay_ms = :testDelayMs, completed = :completed";
 
     private static final String LOAD_SCHEDULED_REVIEWS_SQL =
-            "SELECT id, lexicon_id, word_id, review_type, test_relationship_id, scheduled_test_time, test_delay_ms, completed " +
+            "SELECT id, owner, lexicon_id, word_id, review_type, test_relationship_id, scheduled_test_time, test_delay_ms, completed " +
             "FROM scheduled_review " +
-            "WHERE lexicon_id = :lexiconId AND scheduled_test_time < :cutoffInstant AND completed IS NOT TRUE AND (:testRelationshipId = '' OR test_relationship_id = :testRelationshipId)";
+            "WHERE lexicon_id = :lexiconId AND owner = :owner AND scheduled_test_time < :cutoffInstant AND completed IS NOT TRUE AND (:testRelationshipId = '' OR test_relationship_id = :testRelationshipId)";
 
     private static final String LOAD_SCHEDULED_REVIEWS_FOR_WORDS_SQL =
-            "SELECT id, lexicon_id, word_id, review_type, test_relationship_id, scheduled_test_time, test_delay_ms, completed " +
+            "SELECT id, owner, lexicon_id, word_id, review_type, test_relationship_id, scheduled_test_time, test_delay_ms, completed " +
             "FROM scheduled_review " +
-            "WHERE lexicon_id = :lexiconId AND word_id IN (:wordIds) AND completed IS NOT TRUE";
+            "WHERE lexicon_id = :lexiconId AND owner = :owner AND word_id IN (:wordIds) AND completed IS NOT TRUE";
 
     private static final String GET_LEXICON_REVIEW_HISTORY_BATCH_SQL =
             "SELECT l.word_id, l.learned, l.most_recent_test_time, l.current_test_delay_sec, l.current_boost, l.current_boost_expiration_delay_sec, " +
@@ -117,8 +117,6 @@ public class ReviewSessionDao {
 
     @Autowired
     public ReviewSessionDao(NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
-
-
         this.template = namedParameterJdbcTemplate;
     }
 
@@ -171,12 +169,13 @@ public class ReviewSessionDao {
         template.update(MARK_EVENTS_AS_PROCESSED, Map.of("eventIds", eventIds));
     }
 
-    public void createScheduledReviewsBatch(List<DBScheduledReview> scheduledReviews) {
+    public void createScheduledReviewsBatch(List<DBScheduledReview> scheduledReviews, String owner) {
         SqlParameterSource paramsArray[] = new SqlParameterSource[scheduledReviews.size()];
 
         for (int index = 0; index < scheduledReviews.size(); index++) {
             paramsArray[index] = new MapSqlParameterSource(Map.of(
                     "id", scheduledReviews.get(index).id(),
+                    "owner", owner,
                     "lexiconId", scheduledReviews.get(index).lexiconId(),
                     "wordId", scheduledReviews.get(index).wordId(),
                     "reviewType", scheduledReviews.get(index).reviewType().toString(),
@@ -189,16 +188,18 @@ public class ReviewSessionDao {
         template.batchUpdate(CREATE_SCHEDULED_REVIEW_SQL, paramsArray);
     }
 
-    public List<DBScheduledReview> loadScheduledReviews(String lexiconId, String testRelationshipId, Optional<Instant> cutoffInstant) {
+    public List<DBScheduledReview> loadScheduledReviews(String owner, String lexiconId, String testRelationshipId, Optional<Instant> cutoffInstant) {
 
-        return template.query(LOAD_SCHEDULED_REVIEWS_SQL, Map.of("lexiconId", lexiconId,
+        return template.query(LOAD_SCHEDULED_REVIEWS_SQL, Map.of("owner", owner,
+                                                                 "lexiconId", lexiconId,
                                                                  "testRelationshipId", testRelationshipId == null ? "" : testRelationshipId,   // needs to be blank if not being used as a filter
                                                                  "cutoffInstant", Timestamp.from(cutoffInstant.orElse(Instant.now()))),
                 ReviewSessionDao::getDBScheduledReviewFromResultSet);
     }
 
-    public List<DBScheduledReview> loadScheduledReviewsForWords(String lexiconId, Collection<String> wordIds) {
-        return template.query(LOAD_SCHEDULED_REVIEWS_FOR_WORDS_SQL, Map.of("lexiconId", lexiconId,
+    public List<DBScheduledReview> loadScheduledReviewsForWords(String owner, String lexiconId, Collection<String> wordIds) {
+        return template.query(LOAD_SCHEDULED_REVIEWS_FOR_WORDS_SQL, Map.of("owner", owner,
+                                                                           "lexiconId", lexiconId,
                                                                            "wordIds", wordIds),
                 ReviewSessionDao::getDBScheduledReviewFromResultSet);
     }
@@ -327,6 +328,7 @@ public class ReviewSessionDao {
     private static DBScheduledReview getDBScheduledReviewFromResultSet(ResultSet rs, int rowNum) throws SQLException {
         return new DBScheduledReview(
                 rs.getString("id"),
+                rs.getString("owner"),
                 rs.getString("lexicon_id"),
                 rs.getString("word_id"),
                 ReviewType.valueOf(rs.getString("review_type")),

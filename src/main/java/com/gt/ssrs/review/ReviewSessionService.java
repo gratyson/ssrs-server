@@ -52,9 +52,9 @@ public class ReviewSessionService {
     }
 
     public void recordManualEvent(ReviewEvent event, String username) {
-        log.warn(reviewSessionDao.loadScheduledReviewsForWords(event.lexiconId(), List.of(event.wordId())).toString());
+        log.warn(reviewSessionDao.loadScheduledReviewsForWords(username, event.lexiconId(), List.of(event.wordId())).toString());
 
-        Optional<DBScheduledReview> scheduledReviewForWord = reviewSessionDao.loadScheduledReviewsForWords(event.lexiconId(), List.of(event.wordId()))
+        Optional<DBScheduledReview> scheduledReviewForWord = reviewSessionDao.loadScheduledReviewsForWords(username, event.lexiconId(), List.of(event.wordId()))
                 .stream()
                 .filter(scheduledReview -> scheduledReview.reviewType().equals(ReviewType.Review) && !scheduledReview.completed())
                 .sorted(Comparator.comparing(DBScheduledReview::scheduledTestTime))
@@ -105,7 +105,7 @@ public class ReviewSessionService {
             return List.of();
         } else {
             Map<String, List<DBScheduledReview>> dbScheduledReviewsByWordId =
-                    loadScheduledReviewsForWords(lexiconId, wordIds)
+                    loadScheduledReviewsForWords(lexiconId, username, wordIds)
                             .stream()
                             .filter(scheduledReview -> scheduledReview.reviewType() == ReviewType.Review)
                             .sorted(Comparator.comparing(DBScheduledReview::scheduledTestTime))
@@ -133,7 +133,7 @@ public class ReviewSessionService {
 
         int rowsUpdated = reviewSessionDao.updateLexiconReviewHistoryBatch(username, lexiconReviewHistories.stream().map(lexiconReviewHistory -> buildDBLexiconWordHistory(lexiconReviewHistory)).toList());
         for(Map.Entry<String, List<LexiconReviewHistory>> lexiconWordHistoryEntry : wordHistoriesToSaveByLexiconId.entrySet()) {
-            createOrUpdateScheduledReviewBatch(lexiconWordHistoryEntry.getKey(), lexiconWordHistoryEntry.getValue());
+            createOrUpdateScheduledReviewBatch(lexiconWordHistoryEntry.getKey(), username, lexiconWordHistoryEntry.getValue());
         }
 
         return rowsUpdated;
@@ -168,29 +168,29 @@ public class ReviewSessionService {
     }
 
 
-    public List<DBScheduledReview> loadScheduledReviewsForWords(String lexiconId, Collection<String> wordIds) {
-        return reviewSessionDao.loadScheduledReviewsForWords(lexiconId, wordIds);
+    public List<DBScheduledReview> loadScheduledReviewsForWords(String lexiconId, String username, Collection<String> wordIds) {
+        return reviewSessionDao.loadScheduledReviewsForWords(username, lexiconId, wordIds);
     }
 
 
-    public void createOrUpdateScheduledReviewBatch(String lexiconId, List<LexiconReviewHistory> lexiconWordHistories) {
+    public void createOrUpdateScheduledReviewBatch(String lexiconId, String username, List<LexiconReviewHistory> lexiconWordHistories) {
         List<String> wordHistoryWordIds = lexiconWordHistories.stream().map(LexiconReviewHistory::wordId).toList();
         Map<String, List<DBScheduledReview>> existingScheduledReviews =
-                loadScheduledReviewsForWords(lexiconId, wordHistoryWordIds)
+                loadScheduledReviewsForWords(lexiconId, username, wordHistoryWordIds)
                         .stream()
                         .collect(Collectors.groupingBy(DBScheduledReview::wordId));
 
         List<DBScheduledReview> reviewsToSave = new ArrayList<>();
         for(LexiconReviewHistory wordHistory : lexiconWordHistories) {
             String idToUse = getReviewId(existingScheduledReviews.computeIfAbsent(wordHistory.wordId(), (wordId) -> List.of()));
-            reviewsToSave.add(buildScheduledReviewFromHistory(idToUse, wordHistory));
+            reviewsToSave.add(buildScheduledReviewFromHistory(idToUse, username, wordHistory));
         }
 
-        reviewSessionDao.createScheduledReviewsBatch(reviewsToSave);
+        reviewSessionDao.createScheduledReviewsBatch(reviewsToSave, username);
     }
 
-    private DBScheduledReview buildScheduledReviewFromHistory(String id, LexiconReviewHistory wordHistory) {
-        return new DBScheduledReview(id, wordHistory.lexiconId(), wordHistory.wordId(), ReviewType.Review, wordHistory.nextTestRelationId(),
+    private DBScheduledReview buildScheduledReviewFromHistory(String id, String username, LexiconReviewHistory wordHistory) {
+        return new DBScheduledReview(id, username, wordHistory.lexiconId(), wordHistory.wordId(), ReviewType.Review, wordHistory.nextTestRelationId(),
                 wordHistory.nextTestTime(), Duration.between(wordHistory.mostRecentTestTime(), wordHistory.nextTestTime()), false);
     }
 
@@ -299,7 +299,7 @@ public class ReviewSessionService {
             maxWordCnt = MAX_REVIEW_SIZE;
         }
 
-        List<ScheduledWordReview> scheduledReviewWords = getWordsToReview(lexiconId, reviewRelationShip, cutoffInstant);
+        List<ScheduledWordReview> scheduledReviewWords = getWordsToReview(lexiconId, username, reviewRelationShip, cutoffInstant);
 
         if (scheduledReviewWords == null || scheduledReviewWords.size() == 0) {
             return List.of();
@@ -348,17 +348,17 @@ public class ReviewSessionService {
     public Map<String, Integer> getScheduledReviewCounts(String username, String lexiconId, Optional<Instant> cutoffInstant) {
         Map<String, Integer> scheduledReviewCounts = new HashMap<>();
 
-        for (DBScheduledReview scheduledReview : getCurrentScheduledReviewForLexicon(lexiconId, Optional.empty(), cutoffInstant)) {
+        for (DBScheduledReview scheduledReview : getCurrentScheduledReviewForLexicon(lexiconId, username,Optional.empty(), cutoffInstant)) {
             scheduledReviewCounts.put(scheduledReview.testRelationshipId(), scheduledReviewCounts.getOrDefault(scheduledReview.testRelationshipId(), 0) + 1);
         }
 
         return scheduledReviewCounts;
     }
 
-    private List<DBScheduledReview> getCurrentScheduledReviewForLexicon(String lexiconId, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
+    private List<DBScheduledReview> getCurrentScheduledReviewForLexicon(String lexiconId, String username, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
         Instant now = Instant.now();
 
-        List<DBScheduledReview> scheduledReviews = reviewSessionDao.loadScheduledReviews(lexiconId, reviewRelationship.orElse(""), cutoffInstant);
+        List<DBScheduledReview> scheduledReviews = reviewSessionDao.loadScheduledReviews(username, lexiconId, reviewRelationship.orElse(""), cutoffInstant);
 
         if (cutoffInstant.isPresent() && cutoffInstant.get().isAfter(now)) {
             scheduledReviews = scheduledReviews.stream().filter(scheduledReview -> isFutureEventAllowed(scheduledReview, now)).toList();
@@ -371,8 +371,8 @@ public class ReviewSessionService {
         return (dbScheduledReview.scheduledTestTime().toEpochMilli() - now.toEpochMilli()) < (dbScheduledReview.testDelay().toMillis() * (1 - futureEventAllowedRatio));
     }
 
-    private List<ScheduledWordReview> getWordsToReview(String lexiconId, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
-        List<DBScheduledReview> scheduledReviews = getCurrentScheduledReviewForLexicon(lexiconId, reviewRelationship, cutoffInstant);
+    private List<ScheduledWordReview> getWordsToReview(String lexiconId, String username, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
+        List<DBScheduledReview> scheduledReviews = getCurrentScheduledReviewForLexicon(lexiconId, username, reviewRelationship, cutoffInstant);
 
         return scheduledReviews
                 .stream()
@@ -422,7 +422,7 @@ public class ReviewSessionService {
         }
 
         if (scheduledReviewRelationship == null) {
-            log.error("Invalid relationship {} on review {}. Defaulting to first valid relationship.");
+            log.error("Invalid relationship {} on review {}. Defaulting to first valid relationship.", scheduledReview.reviewRelationShip(),  scheduledReview.reviewId());
             scheduledReviewRelationship = language.testRelationships().get(0);
         }
 

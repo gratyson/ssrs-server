@@ -103,7 +103,7 @@ public class ReviewSessionServiceTests {
 
     @Test
     public void testGetScheduledReviewCounts() {
-        when(reviewSessionDao.loadScheduledReviews(TEST_LEXICON_ID, "", Optional.empty())).thenReturn(List.of(
+        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.empty())).thenReturn(List.of(
                 buildDBScheduledReview(TEST_WORD_1_ID, 2, Instant.now().minusSeconds(60), Duration.ofSeconds(60), false),
                 buildDBScheduledReview(TEST_WORD_2_ID, 1, Instant.now().minusSeconds(60), Duration.ofSeconds(60), false),
                 buildDBScheduledReview(TEST_WORD_3_ID, 2, Instant.now().minusSeconds(60), Duration.ofSeconds(60), false)));
@@ -167,7 +167,7 @@ public class ReviewSessionServiceTests {
                 buildDBScheduledReview(TEST_WORD_1_ID, 1, scheduledInstant),
                 buildDBScheduledReview(TEST_WORD_2_ID, 2, scheduledInstant),
                 buildDBScheduledReview(TEST_WORD_3_ID, 0, scheduledInstant));
-        when(reviewSessionDao.loadScheduledReviews(TEST_LEXICON_ID, "", Optional.empty())).thenReturn(scheduledReviews);
+        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.empty())).thenReturn(scheduledReviews);
 
         List<Word> wordsToReview = List.of(buildWord(TEST_WORD_1_ID, false),
                                            buildWord(TEST_WORD_2_ID, false),
@@ -204,7 +204,7 @@ public class ReviewSessionServiceTests {
                 buildDBScheduledReview(TEST_WORD_1_ID, 1, scheduledInstant),
                 buildDBScheduledReview(TEST_WORD_2_ID, 2, scheduledInstant),
                 buildDBScheduledReview(TEST_WORD_3_ID, 0, scheduledInstant));
-        when(reviewSessionDao.loadScheduledReviews(TEST_LEXICON_ID, "", Optional.empty())).thenReturn(scheduledReviews);
+        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.empty())).thenReturn(scheduledReviews);
 
         Word word = buildWord(TEST_WORD_1_ID, false);
         List<Word> wordsToReview = List.of(word);
@@ -235,7 +235,7 @@ public class ReviewSessionServiceTests {
         Instant scheduledInstant = Instant.now().minusSeconds(60);
         List<DBScheduledReview> scheduledReviews = List.of(
                 buildDBScheduledReview(TEST_WORD_1_ID, 1, scheduledInstant));
-        when(reviewSessionDao.loadScheduledReviews(TEST_LEXICON_ID, TEST_LANGUAGE.testRelationships().get(1).id(), Optional.empty())).thenReturn(scheduledReviews);
+        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, TEST_LANGUAGE.testRelationships().get(1).id(), Optional.empty())).thenReturn(scheduledReviews);
 
         Word word = buildWord(TEST_WORD_1_ID, false);
         List<Word> wordsToReview = List.of(word);
@@ -269,7 +269,7 @@ public class ReviewSessionServiceTests {
                 buildDBScheduledReview(TEST_WORD_1_ID, 1, Instant.now().minusSeconds(60)),  // Past, include
                 buildDBScheduledReview(TEST_WORD_2_ID, 2, Instant.now().plusSeconds(10)),      // Future, 83% of time has past, include
                 buildDBScheduledReview(TEST_WORD_3_ID, 0, Instant.now().plusSeconds(50)));     // Future, 18% of time pas past, excluded
-        when(reviewSessionDao.loadScheduledReviews(TEST_LEXICON_ID, "", Optional.of(cutoffInstant))).thenReturn(scheduledReviews);
+        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.of(cutoffInstant))).thenReturn(scheduledReviews);
 
         List<Word> wordsToReview = List.of(buildWord(TEST_WORD_1_ID, false),
                                            buildWord(TEST_WORD_2_ID, false));
@@ -351,7 +351,7 @@ public class ReviewSessionServiceTests {
     }
 
     private static DBScheduledReview buildDBScheduledReview(String wordId, int reviewRelationshipIndex, Instant scheduledTime, Duration testDelay, boolean completed) {
-        return new DBScheduledReview(UUID.randomUUID().toString(), TEST_LEXICON_ID, wordId, ReviewType.Review,
+        return new DBScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, TEST_LEXICON_ID, wordId, ReviewType.Review,
                 TEST_LANGUAGE.testRelationships().get(reviewRelationshipIndex).id(), scheduledTime, testDelay, completed);
     }
 

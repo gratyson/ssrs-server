@@ -654,6 +654,7 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
 CREATE TABLE IF NOT EXISTS scheduled_review
 (
     id character varying(64) COLLATE pg_catalog."default" NOT NULL,
+    owner character varying(255) COLLATE pg_catalog."default",
     lexicon_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
     word_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
     scheduled_test_time timestamp with time zone NOT NULL,

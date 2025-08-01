@@ -94,9 +94,12 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
         List<DBScheduledReview> capturedScheduledReviews = scheduledReviewCaptor.getValue();
+        String owner = ownerCaptor.getValue();
 
+        assertEquals(TEST_USERNAME, owner);
         assertTrue(capturedScheduledReviews.get(0).wordId().equals(LEARNING_WORD_ID) || capturedScheduledReviews.get(0).wordId().equals(REVIEW_WORD_ID));
         assertTrue(capturedScheduledReviews.get(1).wordId().equals(LEARNING_WORD_ID) || capturedScheduledReviews.get(1).wordId().equals(REVIEW_WORD_ID));
         assertNotEquals(capturedScheduledReviews.get(0).wordId(), capturedScheduledReviews.get(1).wordId());
@@ -164,7 +167,7 @@ public class ReviewEventProcessorTests {
 
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
-        verify(reviewSessionDao, times(0)).createScheduledReviewsBatch(anyList());
+        verify(reviewSessionDao, times(0)).createScheduledReviewsBatch(anyList(), eq(TEST_USERNAME));
         verify(reviewSessionDao, times(0)).updateLexiconReviewHistoryBatch(eq(TEST_USERNAME), anyList());
         verify(reviewSessionDao).markEventsAsProcessed(events);
     }
@@ -183,7 +186,7 @@ public class ReviewEventProcessorTests {
 
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
-        verify(reviewSessionDao, times(0)).createScheduledReviewsBatch(anyList());
+        verify(reviewSessionDao, times(0)).createScheduledReviewsBatch(anyList(), eq(TEST_USERNAME));
         verify(reviewSessionDao, times(0)).updateLexiconReviewHistoryBatch(eq(TEST_USERNAME), anyList());
         verify(reviewSessionDao).markEventsAsProcessed(events);
     }
@@ -198,7 +201,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         List<DBScheduledReview> capturedScheduledReviews = scheduledReviewCaptor.getValue();
         assertEquals(1, capturedScheduledReviews.size());
         DBScheduledReview capturedScheduledReview = capturedScheduledReviews.get(0);
@@ -243,7 +248,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         List<DBScheduledReview> capturedScheduledReviews = scheduledReviewCaptor.getValue();
         assertEquals(1, capturedScheduledReviews.size());
         DBScheduledReview capturedScheduledReview = capturedScheduledReviews.get(0);
@@ -310,7 +317,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -348,7 +357,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -389,7 +400,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -435,7 +448,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -466,7 +481,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -496,7 +513,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -531,7 +550,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -567,7 +588,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -603,7 +626,9 @@ public class ReviewEventProcessorTests {
         reviewEventProcessor.processEvents(TEST_USERNAME, LEXICON_ID);
 
         ArgumentCaptor<List<DBScheduledReview>> scheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture());
+        ArgumentCaptor<String> ownerCaptor = ArgumentCaptor.forClass(String.class);
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(scheduledReviewCaptor.capture(), ownerCaptor.capture());
+        assertEquals(TEST_USERNAME, ownerCaptor.getValue());
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
@@ -643,7 +668,7 @@ public class ReviewEventProcessorTests {
                 Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), 0, Duration.ofSeconds(0), Map.of())));
         verify(reviewSessionDao, times(1)).updateLexiconReviewHistoryBatch(eq(TEST_USERNAME), anyList());
 
-        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(anyList());
+        verify(reviewSessionDao, times(1)).createScheduledReviewsBatch(anyList(), eq(TEST_USERNAME));
 
         List<DBReviewEvent> allEvents = new ArrayList<>(eventsBatch1);
         allEvents.addAll(eventsBatch2);
@@ -665,7 +690,7 @@ public class ReviewEventProcessorTests {
         when(lexiconDao.getTotalLexiconWordCount(LEXICON_ID)).thenReturn(totalWords);
         when(reviewSessionDao.getTotalLearnedWordCount(LEXICON_ID, TEST_USERNAME)).thenReturn(learnedWords);
 
-        when(reviewSessionDao.loadScheduledReviews(LEXICON_ID, "", Optional.of(cutoff))).thenReturn(List.of(
+        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, LEXICON_ID, "", Optional.of(cutoff))).thenReturn(List.of(
                 buildDBScheduledReview(wordScheduledInPastId, now.minus(Duration.ofDays(1)), testDelay),
                 buildDBScheduledReview(wordScheduledNowWithBoostId, now, testDelay),
                 buildDBScheduledReview(wordScheduledBeforeCutoffId, now.plus(Duration.ofHours(12)), testDelay)));
@@ -738,7 +763,7 @@ public class ReviewEventProcessorTests {
     }
 
     private DBScheduledReview buildDBScheduledReview(String wordId, Instant scheduledInstant, Duration scheduledTestDelay) {
-        return new DBScheduledReview(UUID.randomUUID().toString(), LEXICON_ID, wordId, ReviewType.Review, TEST_LANGUAGE.testRelationships().get(0).id(),
+        return new DBScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, LEXICON_ID, wordId, ReviewType.Review, TEST_LANGUAGE.testRelationships().get(0).id(),
                 scheduledInstant, scheduledTestDelay, false);
     }
 
