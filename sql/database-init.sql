@@ -143,6 +143,8 @@ CREATE TABLE IF NOT EXISTS word_elements
     weight numeric,
     apply_language_font boolean,
     test_time_multiplier numeric,
+    validation_regex character varying(255) COLLATE pg_catalog."default",
+    description character varying(255) COLLATE pg_catalog."default",
     CONSTRAINT word_elements_pkey PRIMARY KEY (id)
 )
 
@@ -161,6 +163,7 @@ CREATE TABLE IF NOT EXISTS language_elements
     core boolean,
     ordinal numeric,
     dedupe boolean,
+    show_in_overview boolean,
     CONSTRAINT language_elements_pkey PRIMARY KEY (language_id, word_element_id),
     CONSTRAINT language_id FOREIGN KEY (language_id)
         REFERENCES language (id) MATCH SIMPLE
@@ -331,6 +334,7 @@ CREATE TABLE IF NOT EXISTS words
     meaning character varying(255) COLLATE pg_catalog."default" DEFAULT ''::character varying,
     kanji character varying(255) COLLATE pg_catalog."default" DEFAULT ''::character varying,
     alt_kanji character varying(255) COLLATE pg_catalog."default" DEFAULT ''::character varying,
+    accent character varying(255) COLLATE pg_catalog."default" DEFAULT ''::character varying,
     attributes character varying(255) COLLATE pg_catalog."default",
     create_instant timestamp with time zone,
     update_instant timestamp with time zone,

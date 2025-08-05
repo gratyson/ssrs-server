@@ -26,11 +26,11 @@ public class LanguageDao {
     }
 
     private static final String GET_ALL_LANGUAGE_ELEMENTS_SQL =
-            "SELECT id, name, abbreviation, weight, apply_language_font, test_time_multiplier " +
+            "SELECT id, name, abbreviation, weight, apply_language_font, test_time_multiplier, validation_regex, description " +
             "FROM word_elements";
 
     private static final String GET_ALL_LANGUAGES_SQL =
-            "SELECT l.id, l.display_name, l.font, l.audio_file_regex, l.tests_to_double, e.word_element_id, e.required, e.core, e.dedupe, e.ordinal " +
+            "SELECT l.id, l.display_name, l.font, l.audio_file_regex, l.tests_to_double, e.word_element_id, e.required, e.core, e.dedupe, e.show_in_overview, e.ordinal " +
             "FROM language l LEFT JOIN language_elements e on l.id = e.language_id " +
             "ORDER BY l.id, e.ordinal";
 
@@ -53,7 +53,9 @@ public class LanguageDao {
                         rs.getString("abbreviation"),
                         rs.getInt("weight"),
                         rs.getBoolean("apply_language_font"),
-                        rs.getDouble("test_time_multiplier")));
+                        rs.getDouble("test_time_multiplier"),
+                        rs.getString("validation_regex"),
+                        rs.getString("description")));
     }
 
     public List<DBLanguage> getAllLanguages() {
@@ -69,12 +71,13 @@ public class LanguageDao {
             List<String> requiredElements = new ArrayList<>();
             List<String> coreElements = new ArrayList<>();
             List<String> dedupeElements = new ArrayList<>();
+            List<String> overviewElements = new ArrayList<>();
 
             while (rs.next()) {
                 int id = rs.getInt("id");
                 if (curId != id) {
                     if (curId > 0) {
-                        languages.add(new DBLanguage(curId, displayName, fontName, audioFileRegex, testsToDouble, validElements, requiredElements, coreElements, dedupeElements));
+                        languages.add(new DBLanguage(curId, displayName, fontName, audioFileRegex, testsToDouble, validElements, requiredElements, coreElements, dedupeElements, overviewElements));
                     }
 
                     curId = id;
@@ -99,10 +102,13 @@ public class LanguageDao {
                 if (rs.getBoolean("dedupe")) {
                     dedupeElements.add(wordElementId);
                 }
+                if (rs.getBoolean("show_in_overview")) {
+                    overviewElements.add(wordElementId);
+                }
             }
             if (curId > 0) {
                 languages.add(new DBLanguage(curId, displayName, fontName, audioFileRegex, testsToDouble, validElements,
-                        requiredElements, coreElements, dedupeElements));
+                        requiredElements, coreElements, dedupeElements, overviewElements));
             }
 
             return languages;

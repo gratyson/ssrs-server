@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
@@ -177,6 +178,17 @@ public class LexiconService {
         for(WordElement requiredElement : language.requiredElements()) {
             if (!word.elements().containsKey(requiredElement.id()) || word.elements().get(requiredElement.id()).isBlank()) {
                 log.info("Word missing required element {}, skipping save.", requiredElement);
+                return false;
+            }
+        }
+
+        for(WordElement validElement : language.validElements()) {
+            if (validElement.validationRegex() != null
+                    && !validElement.validationRegex().isBlank()
+                    && word.elements().containsKey(validElement.id())
+                    && !word.elements().get(validElement.id()).isBlank()
+                    && !Pattern.matches(validElement.validationRegex(), word.elements().get(validElement.id()))) {
+                log.info("Word element {} does contains an invalid value, skipping save.", validElement.name());
                 return false;
             }
         }

@@ -29,7 +29,8 @@ public class LexiconDao {
             "kana",
             "meaning",
             "kanji",
-            "alt_kanji"
+            "alt_kanji",
+            "accent"
     ));
 
     private static final int FIND_SIMILAR_ELEMENTS_BATCH_SIZE = 100;

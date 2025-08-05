@@ -44,6 +44,7 @@ public class LanguageService {
                     dbLanguage.requiredElementIds().stream().map(id -> languageElements.get(id)).collect(Collectors.toList()),
                     dbLanguage.coreElementIds().stream().map(id -> languageElements.get(id)).collect(Collectors.toList()),
                     dbLanguage.dedupeElementIds().stream().map(id -> languageElements.get(id)).collect(Collectors.toList()),
+                    dbLanguage.overviewElements().stream().map(id -> languageElements.get(id)).collect(Collectors.toList()),
                     reviewRelationships.getOrDefault(dbLanguage.id(), List.of())));
         }
 
