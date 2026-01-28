@@ -1,5 +1,7 @@
 package com.gt.ssrs.lexicon;
 
+import com.gt.ssrs.language.Language;
+import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.model.TestOnWordPair;
 import com.gt.ssrs.model.*;
 import org.slf4j.Logger;
@@ -25,15 +27,12 @@ public class LexiconDao {
 
     private static final String DUMMY_ID = "_dummy_id";
 
-    private static final List<String> AVAILABLE_ELEMENTS = Collections.unmodifiableList(List.of(
+    private static final List<String> AVAILABLE_ELEMENTS = List.of(
             "kana",
             "meaning",
             "kanji",
             "alt_kanji",
-            "accent"
-    ));
-
-    private static final int FIND_SIMILAR_ELEMENTS_BATCH_SIZE = 100;
+            "accent");
 
     private static final String AUDIO_JOIN_PREFIX = "WITH words AS (";
     private static final String AUDIO_JOIN_SUFFIX = ") SELECT * FROM words w LEFT JOIN word_audio a ON w.id = a.word_id ORDER BY w.create_seq_num DESC";
@@ -169,14 +168,11 @@ public class LexiconDao {
             "DELETE FROM words WHERE id NOT IN (SELECT word_id FROM lexicon_words); ";
 
     private static final String WORD_ELEMENT_TOKEN = "$wordElement$";
-    private static final String WORD_ELEMENT_VALUE_VAR_TOKEN = "$wordElementValueVar$";
-    private static final String ORIGINAL_WORD_ID_VAR_TOKEN = "$originalWordID$";
-    private static final String FIND_SIMILAR_WORD_ELEMENTS_IN_LEXICON_BATCH_SQL =
-            "SELECT :" + ORIGINAL_WORD_ID_VAR_TOKEN + " as originalWordId, '" + WORD_ELEMENT_TOKEN + "' as testOn, w." + WORD_ELEMENT_TOKEN + " as elementValue " +
+    private static final String GET_UNIQUE_VALUES_OF_ELEMENT_IN_LEXICON =
+            "SELECT distinct(w." + WORD_ELEMENT_TOKEN + ") " +
             "FROM lexicon_words l LEFT JOIN words w ON l.word_id = w.id " +
-            "WHERE l.lexicon_id = :lexiconId AND w." + WORD_ELEMENT_TOKEN + " IS NOT NULL AND w." + WORD_ELEMENT_TOKEN + " != '' and w." + WORD_ELEMENT_TOKEN + " <> :" + WORD_ELEMENT_VALUE_VAR_TOKEN + " " +
-            "ORDER BY public.levenshtein_less_equal(:" + WORD_ELEMENT_VALUE_VAR_TOKEN + ", w." + WORD_ELEMENT_TOKEN + ", :maxDistance) asc " +
-            "LIMIT :similarWordCnt";
+            "WHERE l.lexicon_id = :lexiconId AND w." + WORD_ELEMENT_TOKEN + " IS NOT NULL AND w." + WORD_ELEMENT_TOKEN + " != '' " +
+            "LIMIT :limit";
 
 
     private final NamedParameterJdbcTemplate template;
@@ -245,8 +241,8 @@ public class LexiconDao {
     private String getCreateWordSql(Language language) {
         StringBuilder sb = new StringBuilder();
         sb.append(CREATE_WORD_SQL_PREFIX);
-        for(WordElement languageElement : language.dedupeElements()) {
-            sb.append(String.format(CREATE_WORD_ELEMENTS_EXISTS_SQL, languageElement.id(), languageElement.id()));
+        for(WordElement languageElement : language.getDedupeElements()) {
+            sb.append(String.format(CREATE_WORD_ELEMENTS_EXISTS_SQL, languageElement.getId(), languageElement.getId()));
         }
         sb.append(CREATE_WORD_CLOSING_SQL);
         return sb.toString();
@@ -258,8 +254,8 @@ public class LexiconDao {
         MapSqlParameterSource params = new MapSqlParameterSource();
         params.addValue("lexiconId", lexiconId);
         params.addValue("owner", owner);
-        for (WordElement dedupeElement : language.dedupeElements()) {
-            params.addValue(dedupeElement.id(), word.elements().getOrDefault(dedupeElement.id(), null));
+        for (WordElement dedupeElement : language.getDedupeElements()) {
+            params.addValue(dedupeElement.getId(), word.elements().getOrDefault(dedupeElement.getId(), null));
         }
 
         List<Word> duplicateWords = template.query(sql, params, (rs) -> {
@@ -282,8 +278,8 @@ public class LexiconDao {
     private String createFindDuplicateWordsInOtherLexiconsSql(Language language) {
         StringBuilder sb = new StringBuilder();
         sb.append(FIND_DUPLICATE_WORD_IN_OTHER_LEXICONS_PREFIX);
-        for(WordElement languageElement : language.dedupeElements()) {
-            sb.append(String.format(FIND_DUPLICATE_WORD_IN_OTHER_LEXICONS_DEDUPE_CONDITION, languageElement.id(), languageElement.id()));
+        for(WordElement dedupeElement : language.getDedupeElements()) {
+            sb.append(String.format(FIND_DUPLICATE_WORD_IN_OTHER_LEXICONS_DEDUPE_CONDITION, dedupeElement.getId(), dedupeElement.getId()));
         }
         sb.append(FIND_DUPLICATE_WORD_IN_OTHER_LEXICONS_SUFFIX);
 
@@ -575,87 +571,14 @@ public class LexiconDao {
         return template.queryForObject(GET_TOTAL_LEXICON_WORDS_SQL, Map.of("lexiconId", lexiconId), Integer.class);
     }
 
-    public Map<String, Map<String, List<String>>> findSimilarWordElementValuesBatch(String lexiconId, Collection<TestOnWordPair> testOnWordPairs, int maxDistance, int similarWordCnt) {
-        List<TestOnWordPair> testOnWordPairsList = testOnWordPairs.stream().distinct().toList();
-        Map<String, Map<String, List<String>>> similarElementsByWordIdByTestOn = new HashMap<>();
+    public List<String> getUniqueElementValues(String lexiconId, WordElement wordElement, int limit) {
+        String sql = GET_UNIQUE_VALUES_OF_ELEMENT_IN_LEXICON.replace(WORD_ELEMENT_TOKEN, wordElement.getId());
 
-        int pos = 0;
-        do {
-            Map<String, Map<String, List<String>>> similarElementsByWordIdByTestOnBatch = findSimilarWordElementValuesSubBatch(lexiconId, testOnWordPairsList.subList(pos, Math.min(pos + FIND_SIMILAR_ELEMENTS_BATCH_SIZE, testOnWordPairsList.size())), maxDistance, similarWordCnt);
-
-            for (Map.Entry<String, Map<String, List<String>>> testOnEntry : similarElementsByWordIdByTestOnBatch.entrySet()) {
-                for (Map.Entry<String, List<String>> wordIdEntry : testOnEntry.getValue().entrySet()) {
-                    similarElementsByWordIdByTestOn
-                            .computeIfAbsent(testOnEntry.getKey(), k -> new HashMap<>())
-                            .computeIfAbsent(wordIdEntry.getKey(), k -> new ArrayList<>())
-                            .addAll(wordIdEntry.getValue());
-                }
-            }
-
-            pos += FIND_SIMILAR_ELEMENTS_BATCH_SIZE;
-        } while (pos < testOnWordPairsList.size());
-
-        return similarElementsByWordIdByTestOn;
-    }
-
-
-    private Map<String, Map<String, List<String>>> findSimilarWordElementValuesSubBatch(String lexiconId, Collection<TestOnWordPair> testOnWordPairs, int maxDistance, int similarWordCnt) {
-        MapSqlParameterSource parameterSource = new MapSqlParameterSource();
-        parameterSource.addValue("lexiconId", lexiconId);
-        parameterSource.addValue("maxDistance", maxDistance);
-        parameterSource.addValue("similarWordCnt", similarWordCnt);
-
-        String sql = getSimilarElementSqlForWords(testOnWordPairs, parameterSource);
-        if (sql.equals("")) {
-            return Map.of();
-        }
-
-        return template.query(sql, parameterSource, (rs) -> {
-            Map<String, Map<String, List<String>>> similarElementsByWordIdByTestOn = new HashMap<>();
-
-            if (rs != null) {
-                while (rs.next()) {
-                    String wordId = rs.getString("originalWordId");
-                    String testOn = rs.getString("testOn");
-                    String similarElementValue = rs.getString("elementValue");
-
-                    similarElementsByWordIdByTestOn
-                            .computeIfAbsent(testOn, k -> new HashMap<>())
-                            .computeIfAbsent(wordId, k -> new ArrayList<>())
-                            .add(similarElementValue);
-                }
-            }
-
-            return similarElementsByWordIdByTestOn;
-        });
-    }
-
-    private String getSimilarElementSqlForWords(Collection<TestOnWordPair> testOnWordPairs, MapSqlParameterSource parameterSource) {
-        String sql = "";
-        int wordNum = 0;
-
-        for(TestOnWordPair testOnWordPair : testOnWordPairs) {
-            String elementValue = testOnWordPair.word().elements().get(testOnWordPair.testOn());
-            if (elementValue != null && !elementValue.isBlank()) {
-
-                String originalWordIdVarName = "originalWordId" + wordNum;
-                String wordElementValueVarName = "wordElementValueVar" + wordNum++;
-                parameterSource.addValue(wordElementValueVarName, elementValue);
-                parameterSource.addValue(originalWordIdVarName, testOnWordPair.word().id());
-
-                String wordSql = FIND_SIMILAR_WORD_ELEMENTS_IN_LEXICON_BATCH_SQL
-                        .replace(ORIGINAL_WORD_ID_VAR_TOKEN, originalWordIdVarName)
-                        .replace(WORD_ELEMENT_TOKEN, testOnWordPair.testOn())
-                        .replace(WORD_ELEMENT_VALUE_VAR_TOKEN, wordElementValueVarName);
-
-                if (!sql.equals("")) {
-                    sql += " UNION ALL ";
-                }
-                sql += "(" + wordSql + ")";
-            }
-        }
-
-        return sql;
+        return template.query(
+                sql,
+                Map.of("lexiconId", lexiconId,
+                       "limit", limit),
+                (rs, rowNum) -> rs.getString(wordElement.getId()));
     }
 
     private List<String> nonEmptyIdList(List<String> idList) {
@@ -663,9 +586,5 @@ public class LexiconDao {
             return List.of(DUMMY_ID);
         }
         return idList;
-    }
-
-    private static Instant toInstant(Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toInstant();
     }
 }

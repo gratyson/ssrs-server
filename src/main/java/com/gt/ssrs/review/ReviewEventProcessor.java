@@ -1,15 +1,18 @@
 package com.gt.ssrs.review;
 
-import com.gt.ssrs.language.LanguageService;
+import com.gt.ssrs.language.Language;
+import com.gt.ssrs.language.TestRelationship;
+import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.LexiconDao;
+import com.gt.ssrs.model.*;
 import com.gt.ssrs.review.model.DBLexiconReviewHistory;
 import com.gt.ssrs.review.model.DBReviewEvent;
 import com.gt.ssrs.review.model.DBScheduledReview;
-import com.gt.ssrs.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -26,7 +29,6 @@ public class ReviewEventProcessor {
 
     private final ReviewSessionDao reviewSessionDao;
     private final LexiconDao lexiconDao;
-    private final LanguageService languageService;
     private final int initialLearningDelaySec;
     private final int nearMissCorrectDelaySec;
     private final double standardIncorrectBoost;
@@ -35,14 +37,12 @@ public class ReviewEventProcessor {
     @Autowired
     public ReviewEventProcessor(ReviewSessionDao reviewSessionDao,
                                 LexiconDao lexiconDao,
-                                LanguageService languageService,
                                 @Value("${ssrs.learning.initialLearningDelaySec}") int initialLearningDelaySec,
                                 @Value("${ssrs.learning.nearMissCorrectLearningDelaySec}") int nearMissCorrectDelaySec,
                                 @Value("${ssrs.learning.standardIncorrectBoost}") double standardIncorrectBoost,
                                 @Value("${ssrs.learning.nearMissBoost}") double nearMissBoost) {
         this.reviewSessionDao = reviewSessionDao;
         this.lexiconDao = lexiconDao;
-        this.languageService = languageService;
 
         this.initialLearningDelaySec = initialLearningDelaySec;
         this.nearMissCorrectDelaySec = nearMissCorrectDelaySec;
@@ -57,12 +57,11 @@ public class ReviewEventProcessor {
         List<DBScheduledReview> newScheduledReviews = new ArrayList<>();
 
         if (allEvents.size() > 0) {
-            Language language = languageService.GetLanguageById(lexiconDao.getLexiconMetadata(lexiconId).languageId());
+            Language language = Language.getLanguageById(lexiconDao.getLexiconMetadata(lexiconId).languageId());
             Map<String, List<DBReviewEvent>> eventsByWord = allEvents.stream().collect(Collectors.groupingBy(DBReviewEvent::wordId));
 
             Map<String, Word> words = lexiconDao.loadWords(eventsByWord.keySet()).stream().collect(Collectors.toMap(word -> word.id(), word -> word));
             Map<String, DBLexiconReviewHistory> histories = reviewSessionDao.getLexiconReviewHistoryBatch(lexiconId, username, words.keySet()).stream().collect(Collectors.toMap(history -> history.wordId(), history -> history));
-
 
             eventsByWord.forEach((wordId, eventList) -> {
                 Word word = words.get(wordId);
@@ -96,7 +95,7 @@ public class ReviewEventProcessor {
 
     private List<FutureReviewEvent> getFutureReviewEvents(String lexiconId, String username, Instant cutoff) {
         Lexicon lexiconMetadata = lexiconDao.getLexiconMetadata(lexiconId);
-        Language language = languageService.GetLanguageById(lexiconMetadata.languageId());
+        Language language = Language.getLanguageById(lexiconMetadata.languageId());
 
         List<FutureReviewEvent> futureReviewEvents = new ArrayList<>();
 
@@ -194,15 +193,15 @@ public class ReviewEventProcessor {
         }
     }
 
-    private String getTestRelationshipId(Language language, String testOn, String promptWith) {
-        for(TestRelationship testRelationship : language.testRelationships()) {
-            if (testRelationship.testOn().equals(testOn) &&
-                    testRelationship.promptWith().equals(promptWith)) {
-                return testRelationship.id();
+    private String getTestRelationshipId(Language language, String testOnId, String promptWithId) {
+        for(TestRelationship testRelationship : language.getReviewTestRelationships()) {
+            if (testRelationship.getTestOn().getId().equals(testOnId) &&
+                    testRelationship.getPromptWith().getId().equals(promptWithId)) {
+                return testRelationship.getId();
             }
         }
 
-        return null;
+        throw new DataIntegrityViolationException("No test relation for testOn=" + testOnId + " promptWith=" + promptWithId + " in language " + language.getDisplayName());
     }
 
     private ProcessedHistoryAndNextReview processCorrectReviewEvent(String lexiconId, String username, Language language, Word word, DBReviewEvent reviewEvent, DBLexiconReviewHistory lexiconReviewHistory, String testRelationshipId) {
@@ -312,7 +311,7 @@ public class ReviewEventProcessor {
     }
 
     private Duration calculateNextDelayAfterSuccessfulTest(Language language, Duration currentTestDelay, double currentBoost, Duration currentBoostExpirationDelay) {
-        double testsToDoubleDelay = language.testsToDouble() <= 0 ? 1 : language.testsToDouble();  // guard against 0 since it would cause a divide-by-zero error
+        double testsToDoubleDelay = language.getTestsToDouble() <= 0 ? 1 : language.getTestsToDouble();  // guard against 0 since it would cause a divide-by-zero error
         Duration standardDelay = calculateNextDelayWithBoost(currentTestDelay, 1, testsToDoubleDelay);
 
         double boost = currentBoost > 1 ? currentBoost : 1;
@@ -353,38 +352,24 @@ public class ReviewEventProcessor {
         TestRelationship selectedRelationship = null;
         int minStreak = Integer.MAX_VALUE;
 
-        for(TestRelationship relationship : language.testRelationships()) {
-            if (relationship.isReviewRelationship()) {
+        for(TestRelationship relationship : language.getReviewTestRelationships()) {
+            if (word.elements().containsKey(relationship.getTestOn().getId())
+                    && word.elements().containsKey(relationship.getPromptWith().getId())
+                    && (lastEvent.reviewType() == ReviewType.Learn || !relationship.getTestOn().getId().equals(lastEvent.testOn()) || !relationship.getPromptWith().getId().equals(lastEvent.promptWith()))) {
 
-                if (word.elements().containsKey(relationship.testOn())
-                        && word.elements().containsKey(relationship.promptWith())
-                        && (lastEvent.reviewType() == ReviewType.Learn || !relationship.testOn().equals(lastEvent.testOn()) || !relationship.promptWith().equals(lastEvent.promptWith()))) {
-
-                    int streak = history.testHistory().containsKey(relationship.id()) ? history.testHistory().get(relationship.id()).correctStreak() : 0;
-                    if (streak < minStreak) {
-                        selectedRelationship = relationship;
-                        minStreak = streak;
-                    }
+                int streak = history.testHistory().containsKey(relationship.getId()) ? history.testHistory().get(relationship.getId()).correctStreak() : 0;
+                if (streak < minStreak) {
+                    selectedRelationship = relationship;
+                    minStreak = streak;
                 }
             }
         }
 
         if (selectedRelationship == null) {
-            return getFirstReviewRelationship(language).id();
+            return language.getReviewTestRelationships().get(0).getId();
         }
 
-        return selectedRelationship.id();
-    }
-
-    private TestRelationship getFirstReviewRelationship(Language language) {
-        for(TestRelationship relationship : language.testRelationships()) {
-            if (relationship.isReviewRelationship()) {
-                return relationship;
-            }
-        }
-
-        // Should be unreachable
-        return language.testRelationships().get(0);
+        return selectedRelationship.getId();
     }
 
     private record ProcessedHistoryAndNextReview(DBLexiconReviewHistory newHistory, DBScheduledReview scheduledReview) { }

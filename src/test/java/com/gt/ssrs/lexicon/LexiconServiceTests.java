@@ -2,11 +2,9 @@ package com.gt.ssrs.lexicon;
 
 import com.gt.ssrs.audio.AudioService;
 import com.gt.ssrs.blob.BlobDao;
-import com.gt.ssrs.language.LanguageService;
-import com.gt.ssrs.model.Language;
+import com.gt.ssrs.language.Language;
 import com.gt.ssrs.model.Lexicon;
 import com.gt.ssrs.model.Word;
-import com.gt.ssrs.util.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -22,9 +20,9 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 public class LexiconServiceTests {
 
-    private static final Language TEST_LANGUAGE = TestUtils.getTestLanguage();
+    private static final Language TEST_LANGUAGE = Language.Japanese;
     private static final String TEST_USERNAME = "testuser";
-    private static final Lexicon TEST_LEXICON_METADATA = new Lexicon(UUID.randomUUID().toString(), TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.id(), "", List.of());
+    private static final Lexicon TEST_LEXICON_METADATA = new Lexicon(UUID.randomUUID().toString(), TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), "", List.of());
 
     private static final Word TEST_WORD_1 = new Word(
             UUID.randomUUID().toString(),
@@ -36,17 +34,15 @@ public class LexiconServiceTests {
 
     @Mock private LexiconDao lexiconDao;
     @Mock private BlobDao blobDao;
-    @Mock private LanguageService languageService;
     @Mock private AudioService audioService;
 
     private LexiconService lexiconService;
 
     @BeforeEach
     public void setup() {
-        lexiconService = new LexiconService(lexiconDao, blobDao, languageService, audioService);
+        lexiconService = new LexiconService(lexiconDao, blobDao, audioService);
 
         when(lexiconDao.getLexiconMetadata(TEST_LEXICON_METADATA.id())).thenReturn(TEST_LEXICON_METADATA);
-        when(languageService.GetLanguageById(TEST_LANGUAGE.id())).thenReturn(TEST_LANGUAGE);
 
         when(lexiconDao.loadWord(TEST_WORD_1.id())).thenReturn(TEST_WORD_1);
         when(lexiconDao.loadWords(List.of(TEST_WORD_1.id()))).thenReturn(List.of(TEST_WORD_1));
@@ -87,9 +83,6 @@ public class LexiconServiceTests {
                 Map.of("kana", "かたかな", "meaning", "katakana"),
                 "n",
                 List.of());
-
-        Word expectedWord = new Word(updatedWordWithoutUsername.id(), TEST_USERNAME, updatedWordWithoutUsername.elements(),
-                updatedWordWithoutUsername.attributes(), updatedWordWithoutUsername.audioFiles());
 
         assertNull(lexiconService.updateWord(updatedWordWithoutUsername, "different_username"));
     }

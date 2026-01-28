@@ -1,11 +1,13 @@
 package com.gt.ssrs.review;
 
+import com.gt.ssrs.fuzzy.DatasetFuzzyMatcher;
+import com.gt.ssrs.language.Language;
+import com.gt.ssrs.language.TestRelationship;
+import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.LexiconDao;
 import com.gt.ssrs.lexicon.model.TestOnWordPair;
-import com.gt.ssrs.model.Language;
 import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.Word;
-import com.gt.ssrs.model.WordElement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,7 @@ public class WordReviewHelper {
 
     private static final Logger log = LoggerFactory.getLogger(WordReviewHelper.class);
 
+    static final int MAX_VALUES_FOR_FUZZY_MATCHING = 10000;
     static final int MAX_DISTANCE = 6;
     static final int SIMILAR_WORD_CNT = 20;
     private static final int DEFAULT_MIN_TYPING_TEST_CHARACTERS = 10;
@@ -52,12 +55,26 @@ public class WordReviewHelper {
         return lexiconDao.getWordsToLearn(lexiconId, username, wordCnt);
     }
 
-    public Map<String, Map<String, List<String>>> findSimilarWordElementValuesBatch(String lexiconId, Collection<TestOnWordPair> testOnWordPairs) {
-        return lexiconDao.findSimilarWordElementValuesBatch(lexiconId, testOnWordPairs, MAX_DISTANCE, SIMILAR_WORD_CNT);
+    public Map<WordElement, Map<Word, List<String>>> findSimilarWordElementValues(String lexiconId, Collection<TestOnWordPair> testOnWordPairs) {
+        Map<WordElement, Map<Word, List<String>>> similarWordElementValues = new HashMap<>();
+        Map<WordElement, DatasetFuzzyMatcher> fuzzyMatchers = new HashMap<>();
+
+        for (TestOnWordPair pair : testOnWordPairs) {
+            similarWordElementValues
+                    .computeIfAbsent(pair.testOn(),
+                                     k -> new HashMap<>())
+                    .put(pair.word(),
+                         fuzzyMatchers
+                                 .computeIfAbsent(pair.testOn(),
+                                                  k -> new DatasetFuzzyMatcher(lexiconDao.getUniqueElementValues(lexiconId, pair.testOn(), MAX_VALUES_FOR_FUZZY_MATCHING)))
+                                 .findSimilarTo(pair.word().elements().get(pair.testOn().getId()), SIMILAR_WORD_CNT, MAX_DISTANCE));
+        }
+
+        return similarWordElementValues;
     }
 
-    public List<String> getSimilarCharacterSelection(Word word, String testOn, List<String> similarElementValues) {
-        String elementValue = word.elements().get(testOn);
+    public List<String> getSimilarCharacterSelection(Word word, WordElement testOn, List<String> similarElementValues) {
+        String elementValue = word.elements().get(testOn.getId());
         List<String> characters = new ArrayList<>(toCharList(elementValue).stream().distinct().toList());
 
         Set<String> addlCharacterCandidates = new HashSet<>();
@@ -77,8 +94,8 @@ public class WordReviewHelper {
         return characters;
     }
 
-    public List<String> getSimilarWordSelection(Word word, String testOn, int selectionCount, List<String> similarElementValues) {
-        String elementValue = word.elements().get(testOn);
+    public List<String> getSimilarWordSelection(Word word, WordElement testOn, int selectionCount, List<String> similarElementValues) {
+        String elementValue = word.elements().get(testOn.getId());
         List<String> selections = new ArrayList<>(List.of(elementValue));
 
         List<String> filteredSimiarElementValues =
@@ -98,14 +115,13 @@ public class WordReviewHelper {
     }
 
 
-    public int getWordAllowedTime(Language language, Word word, ReviewMode reviewMode, String testOn) {
+    public int getWordAllowedTime(Language language, Word word, ReviewMode reviewMode, TestRelationship testRelationship) {
         int testTimeSec = 0;
 
         if (reviewMode == ReviewMode.TypingTest) {
-            testTimeSec = testBaseTimeSec + (word.elements().get(testOn).length() * testAdditionalTimePerChar);
-            WordElement element = getWordElementById(language, testOn);
-            if (element != null && element.testTimeMultiplier() > 1) {
-                testTimeSec *= element.testTimeMultiplier();
+            testTimeSec = testBaseTimeSec + (word.elements().get(testRelationship.getTestOn().getId()).length() * testAdditionalTimePerChar);
+            if (testRelationship.getTestOn().getTestTimeMultiplier() > 1) {
+                testTimeSec *= testRelationship.getTestOn().getTestTimeMultiplier();
             }
 
         } else if (reviewMode == ReviewMode.MultipleChoiceTest) {
@@ -115,22 +131,11 @@ public class WordReviewHelper {
         return testTimeSec;
     }
 
-    private WordElement getWordElementById(Language language, String elementId) {
-        for(WordElement wordElement : language.validElements()) {
-            if (wordElement.id().equals(elementId)) {
-                return wordElement;
-            }
-        }
-
-        return null;
-    }
-
-
-    private int calcTypingTestAddlCharacters(String testOnElement) {
+    private int calcTypingTestAddlCharacters(String testOnElementValue) {
         int additionalChars = (int)Math.floor(Math.random() * (maxTypingTestAddlChars - minTypingTestAddlChars + 1)) + minTypingTestAddlChars;
 
-        if (testOnElement.length() + additionalChars < minTypingTestChars) {
-            return minTypingTestChars - testOnElement.length();
+        if (testOnElementValue.length() + additionalChars < minTypingTestChars) {
+            return minTypingTestChars - testOnElementValue.length();
         }
 
         return additionalChars;

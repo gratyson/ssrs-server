@@ -1,6 +1,9 @@
 package com.gt.ssrs.review;
 
-import com.gt.ssrs.language.LanguageService;
+import com.gt.ssrs.language.Language;
+import com.gt.ssrs.language.LearningTestOptions;
+import com.gt.ssrs.language.TestRelationship;
+import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.LexiconService;
 import com.gt.ssrs.lexicon.model.TestOnWordPair;
 import com.gt.ssrs.review.model.DBLexiconReviewHistory;
@@ -30,19 +33,16 @@ public class ReviewSessionService {
     private final ReviewSessionDao reviewSessionDao;
     private final LexiconService lexiconService;
     private final WordReviewHelper wordReviewHelper;
-    private final LanguageService languageService;
     private final double futureEventAllowedRatio;
 
     @Autowired
     public ReviewSessionService(ReviewSessionDao reviewSessionDao,
                                 LexiconService lexiconService,
                                 WordReviewHelper wordReviewHelper,
-                                LanguageService languageService,
                                 @Value("${ssrs.review.futureEventAllowedRatio}") double futureEventAllowedRatio) {
         this.reviewSessionDao = reviewSessionDao;
         this.lexiconService = lexiconService;
         this.wordReviewHelper = wordReviewHelper;
-        this.languageService = languageService;
 
         this.futureEventAllowedRatio = futureEventAllowedRatio;
     }
@@ -77,8 +77,7 @@ public class ReviewSessionService {
                 event.wordId(),
                 event.reviewType(),
                 event.reviewMode(),
-                scheduledTestRelationship.testOn(),
-                scheduledTestRelationship.promptWith(),
+                scheduledTestRelationship.getId(),
                 event.isCorrect(),
                 event.isNearMiss(),
                 0,
@@ -89,10 +88,10 @@ public class ReviewSessionService {
 
     private TestRelationship getTestRelationFromId(String lexiconId, String relationshipId) {
         Lexicon lexicon = lexiconService.getLexiconMetadata(lexiconId);
-        Language language = languageService.GetLanguageById(lexicon.languageId());
+        Language language = Language.getLanguageById(lexicon.languageId());
 
-        for(TestRelationship testRelationship : language.testRelationships()) {
-            if (testRelationship.id().equals(relationshipId)) {
+        for(TestRelationship testRelationship : language.getReviewTestRelationships()) {
+            if (testRelationship.getId().equals(relationshipId)) {
                 return testRelationship;
             }
         }
@@ -206,32 +205,32 @@ public class ReviewSessionService {
 
     public List<List<WordReview>> generateLearningSession(String lexiconId, int wordCnt, String username) {
         Lexicon lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
-        Language language = languageService.GetLanguageById(lexiconMetadata.languageId());
-        Map<String, TestRelationship> relationshipMap = getTestRelationshipMap(language, false);
+        Language language = Language.getLanguageById(lexiconMetadata.languageId());
 
         List<Word> wordsToLearn = wordReviewHelper.getWordsToLearn(lexiconId, username, wordCnt);
         if (wordsToLearn == null || wordsToLearn.size() == 0) {
             return List.of();
         }
 
-        List<LanguageSequenceValue> learningSequence = languageService.getLanguageSequence(lexiconMetadata.languageId(), ReviewType.Learn);
-
-        Map<String, Map<String, List<String>>> similarElementsByWordIdByTestOn = getSimilarElementsByWordIdByTestOn(lexiconId, wordsToLearn, learningSequence, relationshipMap);
+        Map<WordElement, Map<Word, List<String>>> similarElementsByWordIdByTestOn = getSimilarElementsByWordIdByTestOn(language, lexiconId, wordsToLearn);
 
         List<List<WordReview>> wordReviewQueues = new ArrayList<>();
         for(Word word : wordsToLearn) {
             List<WordReview> queue = new ArrayList<>();
 
-            for(int sequenceIndex = 0; sequenceIndex < learningSequence.size(); sequenceIndex++) {
-                LanguageSequenceValue sequenceValue = learningSequence.get(sequenceIndex);
-                TestRelationship reviewRelationship = getReviewRelationship(word, sequenceValue.relationshipId(), relationshipMap);
+            for(int sequenceIndex = 0; sequenceIndex < language.getLearningSequence().size(); sequenceIndex++) {
+                LearningTestOptions learningSequenceTestOptions = language.getLearningSequence().get(sequenceIndex);
+                TestRelationship reviewRelationship = getReviewRelationship(word, learningSequenceTestOptions.relationship());
 
                 // Skip if the sequence specified a relationship, but word does not contain the required elements in the relationship or any fallbacks
-                if (reviewRelationship != null || sequenceValue.relationshipId() == null) {
+                if (reviewRelationship != null || learningSequenceTestOptions.relationship() == null) {
 
-                    queue.add(buildWordLearning(language, word, sequenceValue, reviewRelationship, similarElementsByWordIdByTestOn
-                            .getOrDefault(reviewRelationship.testOn(), Map.of())
-                            .getOrDefault(word.id(), List.of())));
+                    List<String> similarWords = reviewRelationship == null ? List.of() :
+                            similarElementsByWordIdByTestOn
+                                    .getOrDefault(reviewRelationship.getTestOn(), Map.of())
+                                    .getOrDefault(word, List.of());
+
+                    queue.add(buildWordLearning(language, word, learningSequenceTestOptions, reviewRelationship, similarWords));
                 }
             }
 
@@ -241,45 +240,37 @@ public class ReviewSessionService {
         return wordReviewQueues;
     }
 
-    private Map<String, TestRelationship> getTestRelationshipMap(Language language, boolean reviewRelationsOnly) {
-        return language.testRelationships()
-                .stream()
-                .filter(relation -> relation.isReviewRelationship() || !reviewRelationsOnly)
-                .collect(Collectors.toMap(relation -> relation.id(), relation -> relation));
-    }
-
-    private Map<String, Map<String, List<String>>> getSimilarElementsByWordIdByTestOn(String lexiconId, List<Word> wordsToLearn, List<LanguageSequenceValue> learningSequence, Map<String, TestRelationship> relationshipMap) {
-        List<String> learningRelationshipIds = learningSequence.stream()
-                .filter(languageSequenceValue -> languageSequenceValue.relationshipId() != null)
-                .map(languageSequenceValue -> languageSequenceValue.relationshipId())
+    private Map<WordElement, Map<Word, List<String>>> getSimilarElementsByWordIdByTestOn(Language language, String lexiconId, List<Word> wordsToLearn) {
+        List<TestRelationship> learningRelationships = language.getLearningSequence().stream()
+                .filter(learningTestOption -> learningTestOption.relationship() != null)
+                .map(learningTestOption -> learningTestOption.relationship())
                 .distinct()
                 .collect(Collectors.toUnmodifiableList());
 
         Set<TestOnWordPair> testOnWordPairs = new HashSet<>();
         for(Word word : wordsToLearn) {
-            for(String relationshipId : learningRelationshipIds) {
-                TestRelationship actualRelationship = getReviewRelationship(word, relationshipId, relationshipMap);
-                testOnWordPairs.add(new TestOnWordPair(actualRelationship.testOn(), word));
+            for(TestRelationship testRelationship : learningRelationships) {
+                TestRelationship actualRelationship = getReviewRelationship(word, testRelationship);
+                if (actualRelationship != null) {
+                    testOnWordPairs.add(new TestOnWordPair(actualRelationship.getTestOn(), word));
+                }
             }
         }
 
-        return wordReviewHelper.findSimilarWordElementValuesBatch(lexiconId, testOnWordPairs);
+        return wordReviewHelper.findSimilarWordElementValues(lexiconId, testOnWordPairs);
     }
 
-    private TestRelationship getReviewRelationship(Language language, Word word, String relationshipId) {
-        return getReviewRelationship(word, relationshipId, getTestRelationshipMap(language, false));
-    }
-    private TestRelationship getReviewRelationship(Word word, String relationshipId, Map<String, TestRelationship> languageRelationships) {
-        if (relationshipId == null) {
-            return TestRelationship.EMPTY_TEST_RELATIONSHIP;
+    private TestRelationship getReviewRelationship(Word word, TestRelationship relationship) {
+        if (relationship == null) {
+            return null;
         }
 
-        TestRelationship relationship = languageRelationships.get(relationshipId);
         int fallbackAttemptCnt = 0;
 
-        while(++fallbackAttemptCnt <= MAX_FALLBACK_ATTEMPTS && relationship != null && (!word.elements().containsKey(relationship.testOn()) || !word.elements().containsKey(relationship.promptWith()))) {
-            String curRelationshipId = relationship.fallbackId();
-            relationship = curRelationshipId == null ? null : languageRelationships.get(curRelationshipId);
+        while(++fallbackAttemptCnt <= MAX_FALLBACK_ATTEMPTS
+                && relationship != null
+                && (!word.elements().containsKey(relationship.getTestOn().getId()) || !word.elements().containsKey(relationship.getPromptWith().getId()))) {
+            relationship = relationship.getFallback();
         }
 
         if (fallbackAttemptCnt == MAX_FALLBACK_ATTEMPTS) {
@@ -293,7 +284,7 @@ public class ReviewSessionService {
 
     public List<WordReview> generateReviewSession(String lexiconId, Optional<String> reviewRelationShip, Optional<Instant> cutoffInstant, int maxWordCnt, String username) {
         Lexicon lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
-        Language language = languageService.GetLanguageById(lexiconMetadata.languageId());
+        Language language = Language.getLanguageById(lexiconMetadata.languageId());
 
         if (maxWordCnt <= 0 || maxWordCnt > MAX_REVIEW_SIZE) {
             maxWordCnt = MAX_REVIEW_SIZE;
@@ -319,14 +310,14 @@ public class ReviewSessionService {
         Map<String, TestRelationship> testRelationshipByReviewId = scheduledReviewWords
                 .stream()
                 .collect(Collectors.toMap(scheduledWordReview -> scheduledWordReview.reviewId(),
-                         scheduledWordReview -> getReviewRelationship(language, scheduledWordMap.get(scheduledWordReview.wordId()), scheduledWordReview.reviewRelationShip())));
+                                          scheduledWordReview -> getReviewRelationship(scheduledWordMap.get(scheduledWordReview.wordId()), TestRelationship.getTestRelationshipById(scheduledWordReview.reviewRelationShip()))));
 
         List<TestOnWordPair> testOnWordPairs = scheduledReviewWords
                 .stream()
-                .map(scheduledWordReview -> new TestOnWordPair(testRelationshipByReviewId.get(scheduledWordReview.reviewId()).testOn(), scheduledWordMap.get(scheduledWordReview.wordId())))
+                .map(scheduledWordReview -> new TestOnWordPair(testRelationshipByReviewId.get(scheduledWordReview.reviewId()).getTestOn(), scheduledWordMap.get(scheduledWordReview.wordId())))
                 .collect(Collectors.toUnmodifiableList());
 
-        Map<String, Map<String, List<String>>> similarWordsByWordIdByTestOn = wordReviewHelper.findSimilarWordElementValuesBatch(lexiconId, testOnWordPairs);
+        Map<WordElement, Map<Word, List<String>>> similarWordsByWordIdByTestOn = wordReviewHelper.findSimilarWordElementValues(lexiconId, testOnWordPairs);
 
         List<WordReview> wordReviews = new ArrayList<>();
         for(ScheduledWordReview scheduledWordReview : scheduledReviewWords){
@@ -338,8 +329,8 @@ public class ReviewSessionService {
                     scheduledWordReview,
                     scheduledWordMap.get(scheduledWordReview.wordId()),
                     similarWordsByWordIdByTestOn
-                            .getOrDefault(testRelationship.testOn(), Map.of())
-                            .getOrDefault(scheduledWordReview.wordId(), List.of())));
+                            .getOrDefault(testRelationship.getTestOn(), Map.of())
+                            .getOrDefault(scheduledWordMap.get(scheduledWordReview.wordId()), List.of())));
         }
 
         return wordReviews;
@@ -382,51 +373,30 @@ public class ReviewSessionService {
 
     private WordReview buildWordReview(Language language, TestRelationship reviewRelationship, ScheduledWordReview scheduledReview, Word word, List<String> similarWords) {
         return new WordReview(
-                language.id(),
+                language.getId(),
                 word,
                 scheduledReview.reviewId(),
-                reviewRelationship.testOn(),
-                reviewRelationship.promptWith(),
-                reviewRelationship.showAfterTest(),
+                reviewRelationship,
                 ReviewMode.TypingTest,
                 scheduledReview.reviewType(),
                 true,
-                wordReviewHelper.getWordAllowedTime(language, word, ReviewMode.TypingTest, reviewRelationship.testOn()),
-                wordReviewHelper.getSimilarCharacterSelection(word, reviewRelationship.testOn(), similarWords),
+                wordReviewHelper.getWordAllowedTime(language, word, ReviewMode.TypingTest, reviewRelationship),
+                wordReviewHelper.getSimilarCharacterSelection(word, reviewRelationship.getTestOn(), similarWords),
                 List.of());
     }
 
-    private WordReview buildWordLearning(Language language, Word word, LanguageSequenceValue sequenceValue, TestRelationship relationship, List<String> similarWords) {
+    private WordReview buildWordLearning(Language language, Word word, LearningTestOptions sequenceValueOptions, TestRelationship relationship, List<String> similarWords) {
         return new WordReview(
-                language.id(),
+                language.getId(),
                 word,
                 null,
-                relationship.testOn(),
-                relationship.promptWith(),
-                relationship.showAfterTest(),
-                sequenceValue.reviewMode(),
+                relationship,
+                sequenceValueOptions.reviewMode(),
                 ReviewType.Learn,
-                sequenceValue.recordEvent(),
-                wordReviewHelper.getWordAllowedTime(language, word, sequenceValue.reviewMode(), relationship.testOn()),
-                sequenceValue.reviewMode() == ReviewMode.TypingTest || sequenceValue.reviewMode() == ReviewMode.WordOverviewWithTyping ? wordReviewHelper.getSimilarCharacterSelection(word, relationship.testOn(), similarWords) : List.of(),
-                sequenceValue.reviewMode() == ReviewMode.MultipleChoiceTest ? wordReviewHelper.getSimilarWordSelection(word, relationship.testOn(), sequenceValue.optionCount(), similarWords) : List.of());
-    }
-
-    private TestRelationship getLearningReviewRelationship(Language language, ScheduledWordReview scheduledReview) {
-        TestRelationship scheduledReviewRelationship = null;
-        for(TestRelationship reviewRelationship : language.testRelationships()) {
-            if (reviewRelationship.id().equals(scheduledReview.reviewRelationShip())) {
-                scheduledReviewRelationship = reviewRelationship;
-                break;
-            }
-        }
-
-        if (scheduledReviewRelationship == null) {
-            log.error("Invalid relationship {} on review {}. Defaulting to first valid relationship.", scheduledReview.reviewRelationShip(),  scheduledReview.reviewId());
-            scheduledReviewRelationship = language.testRelationships().get(0);
-        }
-
-        return scheduledReviewRelationship;
+                sequenceValueOptions.recordEvent(),
+                wordReviewHelper.getWordAllowedTime(language, word, sequenceValueOptions.reviewMode(), relationship),
+                sequenceValueOptions.reviewMode() == ReviewMode.TypingTest || sequenceValueOptions.reviewMode() == ReviewMode.WordOverviewWithTyping ? wordReviewHelper.getSimilarCharacterSelection(word, relationship.getTestOn(), similarWords) : List.of(),
+                sequenceValueOptions.reviewMode() == ReviewMode.MultipleChoiceTest ? wordReviewHelper.getSimilarWordSelection(word, relationship.getTestOn(), sequenceValueOptions.optionCount(), similarWords) : List.of());
     }
 
     private void verifyUserAccessAllowed(String lexiconId, String username) {

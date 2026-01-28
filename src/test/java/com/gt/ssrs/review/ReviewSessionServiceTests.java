@@ -1,12 +1,14 @@
 package com.gt.ssrs.review;
 
-import com.gt.ssrs.language.LanguageService;
+import com.gt.ssrs.language.Language;
+import com.gt.ssrs.language.LearningTestOptions;
+import com.gt.ssrs.language.TestRelationship;
+import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.LexiconService;
 import com.gt.ssrs.lexicon.model.TestOnWordPair;
 import com.gt.ssrs.review.model.DBReviewEvent;
 import com.gt.ssrs.review.model.DBScheduledReview;
 import com.gt.ssrs.model.*;
-import com.gt.ssrs.util.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -29,9 +31,9 @@ public class ReviewSessionServiceTests {
     private static final String TEST_WORD_1_ID = UUID.randomUUID().toString();
     private static final String TEST_WORD_2_ID = UUID.randomUUID().toString();
     private static final String TEST_WORD_3_ID = UUID.randomUUID().toString();
-    private static final Language TEST_LANGUAGE = TestUtils.getTestLanguage();
+    private static final Language TEST_LANGUAGE = Language.Japanese;
     private static final Lexicon TEST_LEXICON_METADATA = new Lexicon(TEST_LEXICON_ID, TEST_USERNAME, "Test Lexicon title",
-            "Test Lexicon description", TEST_LANGUAGE.id(), "", List.of());
+            "Test Lexicon description", TEST_LANGUAGE.getId(), "", List.of());
     private static final List<String> SIMILAR_ELEMENT_VALUES = List.of("A", "B", "C");
 
     private static final double FUTURE_EVENT_ALLOWED_RATIO = .8;
@@ -39,36 +41,19 @@ public class ReviewSessionServiceTests {
     @Mock private ReviewSessionDao reviewSessionDao;
     @Mock private LexiconService lexiconService;
     @Mock private WordReviewHelper wordReviewHelper;
-    @Mock private LanguageService languageService;
 
     private ReviewSessionService reviewSessionService;
 
-    private List<LanguageSequenceValue> learningSequence;
-
     @BeforeEach
     public void setup() {
-        reviewSessionService = new ReviewSessionService(reviewSessionDao, lexiconService, wordReviewHelper, languageService, FUTURE_EVENT_ALLOWED_RATIO);
-
-        //when(languageService.GetAllLanguages()).thenReturn(List.of(TEST_LANGUAGE));
-        when(languageService.GetLanguageById(TEST_LANGUAGE.id())).thenReturn(TEST_LANGUAGE);
+        reviewSessionService = new ReviewSessionService(reviewSessionDao, lexiconService, wordReviewHelper, FUTURE_EVENT_ALLOWED_RATIO);
 
         when(lexiconService.getLexiconMetadata(TEST_LEXICON_ID)).thenReturn(TEST_LEXICON_METADATA);
 
-        learningSequence = new ArrayList<>();
-        learningSequence.add(new LanguageSequenceValue(ReviewMode.WordOverview, 0, false, null));
-        for(int index = 0; index< 3; index++) {
-            TestRelationship reviewRelationship = TEST_LANGUAGE.testRelationships().get(index);
-            learningSequence.add(new LanguageSequenceValue(ReviewMode.MultipleChoiceTest, index + 4,
-                    false, reviewRelationship.id()));
-            learningSequence.add(new LanguageSequenceValue(ReviewMode.TypingTest, 0,
-                    index == 2, reviewRelationship.id()));
-        }
-        when(languageService.getLanguageSequence(TEST_LANGUAGE.id(), ReviewType.Learn)).thenReturn(learningSequence);
+        when(wordReviewHelper.getWordAllowedTime(eq(TEST_LANGUAGE), any(Word.class), any(ReviewMode.class), any(TestRelationship.class)))
+                .then(invoc -> calcAllowedTime(invoc.getArgument(1), invoc.getArgument(2), ((TestRelationship)invoc.getArgument(3))));
 
-        when(wordReviewHelper.getWordAllowedTime(eq(TEST_LANGUAGE), any(Word.class), any(ReviewMode.class), anyString()))
-                .then(invoc -> calcAllowedTime(invoc.getArgument(1), invoc.getArgument(2), invoc.getArgument(3)));
-
-        when(wordReviewHelper.findSimilarWordElementValuesBatch(eq(TEST_LEXICON_ID), anyCollection())).then(
+        when(wordReviewHelper.findSimilarWordElementValues(eq(TEST_LEXICON_ID), anyCollection())).then(
                 v -> {
                     Collection<TestOnWordPair> testOnWordPairs = v.getArgument(1);
                     return testOnWordPairs
@@ -77,14 +62,14 @@ public class ReviewSessionServiceTests {
                             .entrySet().stream()
                             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()
                                     .stream()
-                                    .collect(Collectors.toMap(testOnWordPair -> testOnWordPair.word().id(), testOnWordPair -> SIMILAR_ELEMENT_VALUES))));
+                                    .collect(Collectors.toMap(testOnWordPair -> testOnWordPair.word(), testOnWordPair -> SIMILAR_ELEMENT_VALUES))));
                 });
 
-        when(wordReviewHelper.getSimilarCharacterSelection(any(Word.class), anyString(), eq(SIMILAR_ELEMENT_VALUES)))
-                .then(invoc -> calcTypingTestButtons(invoc.getArgument(0), invoc.getArgument(1)));
+        when(wordReviewHelper.getSimilarCharacterSelection(any(Word.class), any(WordElement.class), eq(SIMILAR_ELEMENT_VALUES)))
+                .then(invoc -> calcTypingTestButtons(invoc.getArgument(0), ((WordElement)invoc.getArgument(1))));
 
-        when(wordReviewHelper.getSimilarWordSelection(any(Word.class), anyString(), anyInt(), eq(SIMILAR_ELEMENT_VALUES)))
-                .then(invoc -> calcMultipleChoiceButtons(invoc.getArgument(0), invoc.getArgument(1), invoc.getArgument(2)));
+        when(wordReviewHelper.getSimilarWordSelection(any(Word.class), any(WordElement.class), anyInt(), eq(SIMILAR_ELEMENT_VALUES)))
+                .then(invoc -> calcMultipleChoiceButtons(invoc.getArgument(0), ((WordElement)invoc.getArgument(1)), invoc.getArgument(2)));
     }
 
     @Test
@@ -93,12 +78,12 @@ public class ReviewSessionServiceTests {
         Instant eventInstant = Instant.now();
 
         ReviewEvent reviewEvent = new ReviewEvent(eventId, TEST_LEXICON_ID, TEST_WORD_1_ID, ReviewType.Review, ReviewMode.TypingTest,
-                "kana", "meaning", true, false, 3000, false);
+                TestRelationship.KanaToMeaning.getId(), true, false, 3000, false);
 
         reviewSessionService.saveReviewEvent(reviewEvent, TEST_USERNAME, eventInstant);
 
         verify(reviewSessionDao).saveReviewEvent(new DBReviewEvent(null, TEST_LEXICON_ID, TEST_WORD_1_ID, TEST_USERNAME, eventInstant, ReviewType.Review,
-                ReviewMode.TypingTest, "kana", "meaning", true, false, 3000, false), eventId);
+                ReviewMode.TypingTest, WordElement.Kana.getId(), WordElement.Meaning.getId(), true, false, 3000, false), eventId);
     }
 
     @Test
@@ -110,8 +95,8 @@ public class ReviewSessionServiceTests {
 
         Map<String, Integer> scheduledReviewCount = reviewSessionService.getScheduledReviewCounts(TEST_USERNAME, TEST_LEXICON_ID, Optional.empty());
 
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(1).id(),1,
-                            TEST_LANGUAGE.testRelationships().get(2).id(),2),
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(),1,
+                            TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(),2),
                      scheduledReviewCount);
     }
 
@@ -128,16 +113,19 @@ public class ReviewSessionServiceTests {
         assertEquals(wordsToLearn.size(), learningSession.size());
         for(int wordIndex = 0; wordIndex < wordsToLearn.size(); wordIndex++) {
             Word word = wordsToLearn.get(wordIndex);
-            boolean isWordOnlyRequiredElements = word.elements().size() == TEST_LANGUAGE.requiredElements().size();
+            boolean isWordOnlyRequiredElements = word.elements().size() == TEST_LANGUAGE.getRequiredElements().size();
 
             List<WordReview> wordReviews = learningSession.get(wordIndex);
-            assertEquals(7, wordReviews.size());
+            assertEquals(TEST_LANGUAGE.getLearningSequence().size(), wordReviews.size());
 
             int wordReviewIndex = 0;
-            verifyWordReview(wordReviews.get(wordReviewIndex++), word, null, ReviewMode.WordOverview, ReviewType.Learn, false, 0);
-            for(int relationshipIndex = 0; relationshipIndex < 3; relationshipIndex++) {
-                verifyWordReview(wordReviews.get(wordReviewIndex++), word, TEST_LANGUAGE.testRelationships().get(isWordOnlyRequiredElements ? 0 : relationshipIndex), ReviewMode.MultipleChoiceTest, ReviewType.Learn, false, relationshipIndex + 4);
-                verifyWordReview(wordReviews.get(wordReviewIndex++), word, TEST_LANGUAGE.testRelationships().get(isWordOnlyRequiredElements ? 0 : relationshipIndex), ReviewMode.TypingTest, ReviewType.Learn, relationshipIndex == 2, 0);
+
+            for (LearningTestOptions options : TEST_LANGUAGE.getLearningSequence()) {
+                WordReview wordReview = wordReviews.get(wordReviewIndex++);
+                // Word is missing all non-required elements, so it should always fallback if there's a fallback option
+                TestRelationship relationship = isWordOnlyRequiredElements && options.relationship() != null && options.relationship().getFallback() != null ? options.relationship().getFallback() : options.relationship();
+
+                verifyWordReview(wordReview, word, relationship, options.reviewMode(), ReviewType.Learn, options.recordEvent(), options.optionCount());
             }
         }
     }
@@ -152,11 +140,12 @@ public class ReviewSessionServiceTests {
         assertEquals(1, learningSession.size());
         List<WordReview> wordReviews = learningSession.get(0);
 
+        assertEquals(TEST_LANGUAGE.getLearningSequence().size(), wordReviews.size());
+
         int wordReviewIndex = 0;
-        verifyWordReview(wordReviews.get(wordReviewIndex++), testWord, null, ReviewMode.WordOverview, ReviewType.Learn, false, 0);
-        for(int relationshipIndex = 0; relationshipIndex < 3; relationshipIndex++) {
-            verifyWordReview(wordReviews.get(wordReviewIndex++), testWord, TEST_LANGUAGE.testRelationships().get(relationshipIndex), ReviewMode.MultipleChoiceTest, ReviewType.Learn, false, relationshipIndex + 4);
-            verifyWordReview(wordReviews.get(wordReviewIndex++), testWord, TEST_LANGUAGE.testRelationships().get(relationshipIndex), ReviewMode.TypingTest, ReviewType.Learn, relationshipIndex == 2, 0);
+        for (LearningTestOptions options : TEST_LANGUAGE.getLearningSequence()) {
+            WordReview wordReview = wordReviews.get(wordReviewIndex++);
+            verifyWordReview(wordReview, testWord, options.relationship(), options.reviewMode(), ReviewType.Learn, options.recordEvent(), options.optionCount());
         }
     }
 
@@ -180,19 +169,17 @@ public class ReviewSessionServiceTests {
         for(int index = 0 ; index < 3; index++) {
             WordReview review = wordReviews.get(index);
             Word word = wordsToReview.get(index);
-            TestRelationship relationship = TEST_LANGUAGE.testRelationships().get((index + 1) % 3);
+            TestRelationship relationship = TEST_LANGUAGE.getReviewTestRelationships().get((index + 1) % 3);
 
-            assertEquals(TEST_LANGUAGE.id(), review.languageId());
+            assertEquals(TEST_LANGUAGE.getId(), review.languageId());
             assertEquals(word, review.word());
             assertNotNull(review.scheduledEventId());
-            assertEquals(relationship.testOn(), review.testOn());
-            assertEquals(relationship.promptWith(), review.promptWith());
-            assertEquals(relationship.showAfterTest(), review.showAfterTest());
+            assertEquals(relationship, review.testRelationship());
             assertEquals(ReviewMode.TypingTest, review.reviewMode());
             assertEquals(ReviewType.Review, review.reviewType());
             assertTrue(review.recordResult());
-            assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.testOn()), review.allowedTimeSec());
-            assertEquals(calcTypingTestButtons(word, relationship.testOn()), review.typingTestButtons());
+            assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.getTestOn().getId()), review.allowedTimeSec());
+            assertEquals(calcTypingTestButtons(word, relationship.getTestOn().getId()), review.typingTestButtons());
             assertEquals(List.of(), review.multipleChoiceButtons());
         }
     }
@@ -214,19 +201,17 @@ public class ReviewSessionServiceTests {
 
         assertEquals(1, wordReviews.size());
         WordReview review = wordReviews.get(0);
-        TestRelationship relationship = TEST_LANGUAGE.testRelationships().get(1);
+        TestRelationship relationship = TEST_LANGUAGE.getReviewTestRelationships().get(1);
 
-        assertEquals(TEST_LANGUAGE.id(), review.languageId());
+        assertEquals(TEST_LANGUAGE.getId(), review.languageId());
         assertEquals(word, review.word());
         assertNotNull(review.scheduledEventId());
-        assertEquals(relationship.testOn(), review.testOn());
-        assertEquals(relationship.promptWith(), review.promptWith());
-        assertEquals(relationship.showAfterTest(), review.showAfterTest());
+        assertEquals(relationship, review.testRelationship());
         assertEquals(ReviewMode.TypingTest, review.reviewMode());
         assertEquals(ReviewType.Review, review.reviewType());
         assertTrue(review.recordResult());
-        assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.testOn()), review.allowedTimeSec());
-        assertEquals(calcTypingTestButtons(word, relationship.testOn()), review.typingTestButtons());
+        assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.getTestOn().getId()), review.allowedTimeSec());
+        assertEquals(calcTypingTestButtons(word, relationship.getTestOn().getId()), review.typingTestButtons());
         assertEquals(List.of(), review.multipleChoiceButtons());
     }
 
@@ -235,29 +220,27 @@ public class ReviewSessionServiceTests {
         Instant scheduledInstant = Instant.now().minusSeconds(60);
         List<DBScheduledReview> scheduledReviews = List.of(
                 buildDBScheduledReview(TEST_WORD_1_ID, 1, scheduledInstant));
-        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, TEST_LANGUAGE.testRelationships().get(1).id(), Optional.empty())).thenReturn(scheduledReviews);
+        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), Optional.empty())).thenReturn(scheduledReviews);
 
         Word word = buildWord(TEST_WORD_1_ID, false);
         List<Word> wordsToReview = List.of(word);
         when(lexiconService.loadWords(List.of(TEST_WORD_1_ID))).thenReturn(wordsToReview);
 
-        List<WordReview> wordReviews = reviewSessionService.generateReviewSession(TEST_LEXICON_ID, Optional.of(TEST_LANGUAGE.testRelationships().get(1).id()), Optional.empty(), 0, TEST_USERNAME);
+        List<WordReview> wordReviews = reviewSessionService.generateReviewSession(TEST_LEXICON_ID, Optional.of(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId()), Optional.empty(), 0, TEST_USERNAME);
 
         assertEquals(1, wordReviews.size());
         WordReview review = wordReviews.get(0);
-        TestRelationship relationship = TEST_LANGUAGE.testRelationships().get(1);
+        TestRelationship relationship = TEST_LANGUAGE.getReviewTestRelationships().get(1);
 
-        assertEquals(TEST_LANGUAGE.id(), review.languageId());
+        assertEquals(TEST_LANGUAGE.getId(), review.languageId());
         assertEquals(word, review.word());
         assertNotNull(review.scheduledEventId());
-        assertEquals(relationship.testOn(), review.testOn());
-        assertEquals(relationship.promptWith(), review.promptWith());
-        assertEquals(relationship.showAfterTest(), review.showAfterTest());
+        assertEquals(relationship, review.testRelationship());
         assertEquals(ReviewMode.TypingTest, review.reviewMode());
         assertEquals(ReviewType.Review, review.reviewType());
         assertTrue(review.recordResult());
-        assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.testOn()), review.allowedTimeSec());
-        assertEquals(calcTypingTestButtons(word, relationship.testOn()), review.typingTestButtons());
+        assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.getTestOn().getId()), review.allowedTimeSec());
+        assertEquals(calcTypingTestButtons(word, relationship.getTestOn().getId()), review.typingTestButtons());
         assertEquals(List.of(), review.multipleChoiceButtons());
     }
 
@@ -282,19 +265,17 @@ public class ReviewSessionServiceTests {
             WordReview review = wordReviews.get(index);
 
             Word word = wordsToReview.get(index);
-            TestRelationship relationship = TEST_LANGUAGE.testRelationships().get((index + 1) % 3);
+            TestRelationship relationship = TEST_LANGUAGE.getReviewTestRelationships().get((index + 1) % 3);
 
-            assertEquals(TEST_LANGUAGE.id(), review.languageId());
+            assertEquals(TEST_LANGUAGE.getId(), review.languageId());
             assertEquals(word, review.word());
             assertNotNull(review.scheduledEventId());
-            assertEquals(relationship.testOn(), review.testOn());
-            assertEquals(relationship.promptWith(), review.promptWith());
-            assertEquals(relationship.showAfterTest(), review.showAfterTest());
+            assertEquals(relationship, review.testRelationship());
             assertEquals(ReviewMode.TypingTest, review.reviewMode());
             assertEquals(ReviewType.Review, review.reviewType());
             assertTrue(review.recordResult());
-            assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.testOn()), review.allowedTimeSec());
-            assertEquals(calcTypingTestButtons(word, relationship.testOn()), review.typingTestButtons());
+            assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.getTestOn().getId()), review.allowedTimeSec());
+            assertEquals(calcTypingTestButtons(word, relationship.getTestOn().getId()), review.typingTestButtons());
             assertEquals(List.of(), review.multipleChoiceButtons());
         }
     }
@@ -302,46 +283,50 @@ public class ReviewSessionServiceTests {
 
     private Word buildWord(String id, boolean requiredElementsOnly) {
         Map<String, String> wordElements = new HashMap<>();
-        List<WordElement> elementsToUse = requiredElementsOnly ? TEST_LANGUAGE.requiredElements() : TEST_LANGUAGE.coreElements();
+        List<WordElement> elementsToUse = requiredElementsOnly ? TEST_LANGUAGE.getRequiredElements() : TEST_LANGUAGE.getCoreElements();
 
         for (WordElement element : elementsToUse) {
-            wordElements.put(element.id(), element.id() + "_" + id);
+            wordElements.put(element.getId(), element.getId() + "_" + id);
         }
 
         return new Word(id, TEST_USERNAME, wordElements, "n", List.of());
     }
 
     private static void verifyWordReview(WordReview wordReview, Word word, TestRelationship reviewRelationship, ReviewMode reviewMode, ReviewType reviewType, boolean recordResult, int multipleChoiceCnt) {
-        assertEquals(TEST_LANGUAGE.id(), wordReview.languageId());
+        assertEquals(TEST_LANGUAGE.getId(), wordReview.languageId());
         assertEquals(word, wordReview.word());
         assertNull(wordReview.scheduledEventId());
-        assertEquals(reviewRelationship != null ? reviewRelationship.testOn() : null, wordReview.testOn());
-        assertEquals(reviewRelationship != null ? reviewRelationship.promptWith() : null, wordReview.promptWith());
-        assertEquals(reviewRelationship != null ? reviewRelationship.showAfterTest() : null, wordReview.showAfterTest());
+        assertEquals(reviewRelationship, wordReview.testRelationship());
         assertEquals(reviewMode, wordReview.reviewMode());
         assertEquals(reviewType, wordReview.reviewType());
         assertEquals(recordResult, wordReview.recordResult());
-        assertEquals(calcAllowedTime(word, reviewMode, wordReview.testOn()), wordReview.allowedTimeSec());
-        assertEquals(reviewMode == ReviewMode.TypingTest ? calcTypingTestButtons(word, wordReview.testOn()) : List.of(), wordReview.typingTestButtons());
-        assertEquals(reviewMode == ReviewMode.MultipleChoiceTest ? calcMultipleChoiceButtons(word, wordReview.testOn(), multipleChoiceCnt) : List.of(), wordReview.multipleChoiceButtons());
+        assertEquals(calcAllowedTime(word, reviewMode, wordReview.testRelationship()), wordReview.allowedTimeSec());
+        assertEquals(reviewMode == ReviewMode.TypingTest ? calcTypingTestButtons(word, wordReview.testRelationship().getTestOn()) : List.of(), wordReview.typingTestButtons());
+        assertEquals(reviewMode == ReviewMode.MultipleChoiceTest ? calcMultipleChoiceButtons(word, wordReview.testRelationship().getTestOn(), multipleChoiceCnt) : List.of(), wordReview.multipleChoiceButtons());
     }
 
     // generate a unique value that can be verified to be set correctly
-    private static int calcAllowedTime(Word word, ReviewMode mode, String testOn) {
-        return mode == ReviewMode.WordOverview ? 0 : (word.hashCode() + mode.getReviewModeId() + testOn.hashCode()) % 30;
+    private static int calcAllowedTime(Word word, ReviewMode mode, TestRelationship relationship) {
+        return calcAllowedTime(word, mode, relationship == null ? "" : relationship.getTestOn().getId());
+    }
+    private static int calcAllowedTime(Word word, ReviewMode mode, String testOnId) {
+        return mode == ReviewMode.WordOverview ? 0 : (word.hashCode() + mode.getReviewModeId() + testOnId.hashCode()) % 30;
     }
 
-    private static List<String> calcTypingTestButtons(Word word, String element) {
-        return Arrays.stream(("Typing" + word.elements().get(element)).split("(?!^)")).toList();
+    private static List<String> calcTypingTestButtons(Word word, WordElement element) {
+        return calcTypingTestButtons(word, element.getId());
+    }
+    private static List<String> calcTypingTestButtons(Word word, String elementId) {
+        return Arrays.stream(("Typing" + word.elements().get(elementId)).split("(?!^)")).toList();
     }
 
-    private static List<String> calcMultipleChoiceButtons(Word word, String element, int count) {
+    private static List<String> calcMultipleChoiceButtons(Word word, WordElement element, int count) {
         List<String> multipleChoiceButtons = new ArrayList<>();
 
         for(int i = 0; i < count - 1; i++) {
             multipleChoiceButtons.add("Multiple" + i);
         }
-        multipleChoiceButtons.add(word.elements().get(element));
+        multipleChoiceButtons.add(word.elements().get(element.getId()));
 
         return multipleChoiceButtons;
     }
@@ -352,7 +337,7 @@ public class ReviewSessionServiceTests {
 
     private static DBScheduledReview buildDBScheduledReview(String wordId, int reviewRelationshipIndex, Instant scheduledTime, Duration testDelay, boolean completed) {
         return new DBScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, TEST_LEXICON_ID, wordId, ReviewType.Review,
-                TEST_LANGUAGE.testRelationships().get(reviewRelationshipIndex).id(), scheduledTime, testDelay, completed);
+                TEST_LANGUAGE.getReviewTestRelationships().get(reviewRelationshipIndex).getId(), scheduledTime, testDelay, completed);
     }
 
 

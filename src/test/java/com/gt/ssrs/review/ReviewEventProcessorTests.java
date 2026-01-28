@@ -1,13 +1,12 @@
 package com.gt.ssrs.review;
 
 
-import com.gt.ssrs.language.LanguageService;
+import com.gt.ssrs.language.Language;
 import com.gt.ssrs.lexicon.LexiconDao;
 import com.gt.ssrs.review.model.DBLexiconReviewHistory;
 import com.gt.ssrs.review.model.DBReviewEvent;
 import com.gt.ssrs.review.model.DBScheduledReview;
 import com.gt.ssrs.model.*;
-import com.gt.ssrs.util.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.*;
 @SpringBootTest
 public class ReviewEventProcessorTests {
 
-    private static final Language TEST_LANGUAGE = TestUtils.getTestLanguage();
+    private static final Language TEST_LANGUAGE = Language.Japanese;
     private static final String TEST_USERNAME = "testUser";
     private static final String LEXICON_ID = UUID.randomUUID().toString();
     private static final String REVIEW_WORD_ID = UUID.randomUUID().toString();
@@ -43,20 +42,18 @@ public class ReviewEventProcessorTests {
 
     @Mock private ReviewSessionDao reviewSessionDao;
     @Mock private LexiconDao lexiconDao;
-    @Mock private LanguageService languageService;
 
     private ReviewEventProcessor reviewEventProcessor;
     private int eventIdCounter;
 
     @BeforeEach
     public void initTests() {
-        reviewEventProcessor = new ReviewEventProcessor(reviewSessionDao, lexiconDao, languageService,
+        reviewEventProcessor = new ReviewEventProcessor(reviewSessionDao, lexiconDao,
                 INITIAL_LEARNING_DELAY_SEC, CORRECT_NEAR_MISS_LEARNING_DELAY_SEC, STANDARD_INCORRECT_BOOST, NEAR_MISS_INCORRECT_BOOST);
         eventIdCounter = 0;
 
         when(lexiconDao.getLexiconMetadata(LEXICON_ID)).thenReturn(
-                new Lexicon(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.id(), "", List.of()));
-        when(languageService.GetLanguageById(TEST_LANGUAGE.id())).thenReturn(TEST_LANGUAGE);
+                new Lexicon(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), "", List.of()));
 
         when(lexiconDao.loadWords(Set.of(REVIEW_WORD_ID, LEARNING_WORD_ID))).thenReturn(List.of(
                 buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji")),
@@ -68,7 +65,7 @@ public class ReviewEventProcessorTests {
 
         DBLexiconReviewHistory learningWordHistory = new DBLexiconReviewHistory(LEXICON_ID, LEARNING_WORD_ID, false, null, null, 0, null, Map.of());
         DBLexiconReviewHistory reviewWordHistory = new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC), Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), 0, Duration.ofSeconds(0),
-                Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)));
+                Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)));
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(LEARNING_WORD_ID))).thenReturn(List.of(learningWordHistory));
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(List.of(reviewWordHistory));
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(LEARNING_WORD_ID, REVIEW_WORD_ID))).thenReturn(List.of(learningWordHistory, reviewWordHistory));
@@ -111,13 +108,13 @@ public class ReviewEventProcessorTests {
             if (capturedScheduledReview.wordId().equals(LEARNING_WORD_ID)) {
                 assertEquals(Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.testDelay());
                 assertEquals(learningTestTime.plusSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.scheduledTestTime());
-                assertEquals(TEST_LANGUAGE.testRelationships().get(0).id(), capturedScheduledReview.testRelationshipId());
+                assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), capturedScheduledReview.testRelationshipId());
             } else {
                 // delay should increase by ~25.9%. Check for 25% < value < %26 rather than trying to determine exact value
                 assertTrue(capturedScheduledReview.testDelay().toMillis() > (REVIEW_WORD_LAST_DELAY_SEC * 1000 * 1.25));
                 assertTrue(capturedScheduledReview.testDelay().toMillis() < (REVIEW_WORD_LAST_DELAY_SEC * 1000 * 1.26));
                 assertEquals(reviewTestTime.plus(capturedScheduledReview.testDelay()), capturedScheduledReview.scheduledTestTime());
-                assertEquals(TEST_LANGUAGE.testRelationships().get(2).id(), capturedScheduledReview.testRelationshipId());  // has history for relation 0 and just tested relation 1, so next relation should be 2
+                assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(), capturedScheduledReview.testRelationshipId());  // has history for relation 0 and just tested relation 1, so next relation should be 2
             }
         }
 
@@ -141,8 +138,8 @@ public class ReviewEventProcessorTests {
                 assertEquals(reviewTestTime, wordHistory.mostRecentTestTime());
                 assertTrue(wordHistory.currentTestDelay().toMillis() > (REVIEW_WORD_LAST_DELAY_SEC * 1000 * 1.25));
                 assertTrue(wordHistory.currentTestDelay().toMillis() < (REVIEW_WORD_LAST_DELAY_SEC * 1000 * 1.26));
-                assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1),
-                                    TEST_LANGUAGE.testRelationships().get(1).id(), new TestHistory(1, 1, 1)),
+                assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1),
+                                    TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), new TestHistory(1, 1, 1)),
                         wordHistory.testHistory());
             }
         }
@@ -178,7 +175,7 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(LEARNING_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, LEARNING_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC),
                         Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), 0, Duration.ofSeconds(0),
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
         List<DBReviewEvent> events = List.of(buildLearningEvent(Instant.now()));
 
@@ -213,7 +210,7 @@ public class ReviewEventProcessorTests {
         assertFalse(capturedScheduledReview.completed());
         assertEquals(Duration.ofSeconds(CORRECT_NEAR_MISS_LEARNING_DELAY_SEC), capturedScheduledReview.testDelay());
         assertEquals(reviewInstant.plusSeconds(CORRECT_NEAR_MISS_LEARNING_DELAY_SEC), capturedScheduledReview.scheduledTestTime());
-        assertEquals(TEST_LANGUAGE.testRelationships().get(2).id(), capturedScheduledReview.testRelationshipId());
+        assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(), capturedScheduledReview.testRelationshipId());
 
         ArgumentCaptor<List<DBLexiconReviewHistory>> historyCaptor = ArgumentCaptor.forClass(List.class);
         verify(reviewSessionDao, times(1)).updateLexiconReviewHistoryBatch(eq(TEST_USERNAME), historyCaptor.capture());
@@ -227,8 +224,8 @@ public class ReviewEventProcessorTests {
         assertEquals(Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), wordHistory.currentBoostExpirationDelay());
         assertEquals(reviewInstant, wordHistory.mostRecentTestTime());
         assertEquals(Duration.ofSeconds(CORRECT_NEAR_MISS_LEARNING_DELAY_SEC), wordHistory.currentTestDelay());
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1),
-                            TEST_LANGUAGE.testRelationships().get(1).id(), new TestHistory(1, 1, 1)),
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1),
+                            TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), new TestHistory(1, 1, 1)),
                 wordHistory.testHistory());
     }
 
@@ -239,7 +236,7 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(lastReviewDelaySec),
                         Duration.ofSeconds(lastReviewDelaySec), 0, Duration.ofSeconds(0),
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
         Instant reviewInstant = Instant.now();
         List<DBReviewEvent> events = List.of(buildReviewEvent(reviewInstant, 1, true, true, false));
@@ -258,11 +255,10 @@ public class ReviewEventProcessorTests {
         assertNotNull(capturedScheduledReview.id());
         assertEquals(LEXICON_ID, capturedScheduledReview.lexiconId());
         assertFalse(capturedScheduledReview.completed());
-        System.out.println("Delay " + capturedScheduledReview.testDelay().toMillis());
         assertTrue(capturedScheduledReview.testDelay().toMillis() > (lastReviewDelaySec * 1000 * 1.25));
         assertTrue(capturedScheduledReview.testDelay().toMillis() < (lastReviewDelaySec * 1000 * 1.26));
         assertEquals(reviewInstant.plus(capturedScheduledReview.testDelay()), capturedScheduledReview.scheduledTestTime());
-        assertEquals(TEST_LANGUAGE.testRelationships().get(2).id(), capturedScheduledReview.testRelationshipId());
+        assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(), capturedScheduledReview.testRelationshipId());
 
         ArgumentCaptor<List<DBLexiconReviewHistory>> historyCaptor = ArgumentCaptor.forClass(List.class);
         verify(reviewSessionDao, times(1)).updateLexiconReviewHistoryBatch(eq(TEST_USERNAME), historyCaptor.capture());
@@ -277,8 +273,8 @@ public class ReviewEventProcessorTests {
         assertEquals(reviewInstant, wordHistory.mostRecentTestTime());
         assertTrue(wordHistory.currentTestDelay().toMillis() > (lastReviewDelaySec * 1000 * 1.25));
         assertTrue(wordHistory.currentTestDelay().toMillis() < (lastReviewDelaySec * 1000 * 1.26));
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1),
-                            TEST_LANGUAGE.testRelationships().get(1).id(), new TestHistory(1, 1, 1)),
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1),
+                            TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), new TestHistory(1, 1, 1)),
                 wordHistory.testHistory());
     }
 
@@ -289,7 +285,7 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC),
                         Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), 3, Duration.ofSeconds(currentBoostDurationSec),
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
         Instant reviewInstant = Instant.now();
         List<DBReviewEvent> events = List.of(buildReviewEvent(reviewInstant, 1, true, true, false));
@@ -326,7 +322,7 @@ public class ReviewEventProcessorTests {
         assertNotNull(capturedScheduledReview.id());
         assertEquals(LEXICON_ID, capturedScheduledReview.lexiconId());
         assertEquals(REVIEW_WORD_ID, capturedScheduledReview.wordId());
-        assertEquals(TEST_LANGUAGE.testRelationships().get(1).id(), capturedScheduledReview.testRelationshipId());
+        assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), capturedScheduledReview.testRelationshipId());
         assertEquals(reviewInstant.plusSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.scheduledTestTime());
         assertEquals(Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.testDelay());
 
@@ -342,7 +338,7 @@ public class ReviewEventProcessorTests {
         assertEquals(Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), capturedHistory.currentTestDelay());
         assertEquals(STANDARD_INCORRECT_BOOST, capturedHistory.currentBoost());
         assertEquals(Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), capturedHistory.currentBoostExpirationDelay());
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(2, 1, 0)), capturedHistory.testHistory());
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(2, 1, 0)), capturedHistory.testHistory());
 
         verify(reviewSessionDao).markEventsAsProcessed(events);
     }
@@ -366,7 +362,7 @@ public class ReviewEventProcessorTests {
         assertNotNull(capturedScheduledReview.id());
         assertEquals(LEXICON_ID, capturedScheduledReview.lexiconId());
         assertEquals(REVIEW_WORD_ID, capturedScheduledReview.wordId());
-        assertEquals(TEST_LANGUAGE.testRelationships().get(1).id(), capturedScheduledReview.testRelationshipId());
+        assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), capturedScheduledReview.testRelationshipId());
         assertEquals(reviewInstant.plusSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.scheduledTestTime());
         assertEquals(Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.testDelay());
 
@@ -382,7 +378,7 @@ public class ReviewEventProcessorTests {
         assertEquals(Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), capturedHistory.currentTestDelay());
         assertEquals(NEAR_MISS_INCORRECT_BOOST, capturedHistory.currentBoost());
         assertEquals(Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), capturedHistory.currentBoostExpirationDelay());
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(2, 1, 0)), capturedHistory.testHistory());
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(2, 1, 0)), capturedHistory.testHistory());
 
         verify(reviewSessionDao).markEventsAsProcessed(events);
     }
@@ -409,7 +405,7 @@ public class ReviewEventProcessorTests {
         assertNotNull(capturedScheduledReview.id());
         assertEquals(LEXICON_ID, capturedScheduledReview.lexiconId());
         assertEquals(REVIEW_WORD_ID, capturedScheduledReview.wordId());
-        assertEquals(TEST_LANGUAGE.testRelationships().get(1).id(), capturedScheduledReview.testRelationshipId());
+        assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), capturedScheduledReview.testRelationshipId());
         assertEquals(reviewInstantOverride.plusSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.scheduledTestTime());
         assertEquals(Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), capturedScheduledReview.testDelay());
 
@@ -425,7 +421,7 @@ public class ReviewEventProcessorTests {
         assertEquals(Duration.ofSeconds(INITIAL_LEARNING_DELAY_SEC), capturedHistory.currentTestDelay());
         assertEquals(STANDARD_INCORRECT_BOOST, capturedHistory.currentBoost());
         assertEquals(Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), capturedHistory.currentBoostExpirationDelay());
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(2, 1, 0)), capturedHistory.testHistory());
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(2, 1, 0)), capturedHistory.testHistory());
 
         verify(reviewSessionDao).markEventsAsProcessed(events);
     }
@@ -435,9 +431,9 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC),
                         Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), 0, Duration.ofSeconds(0),
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1),
-                               TEST_LANGUAGE.testRelationships().get(1).id(), new TestHistory(5, 5, 5),
-                               TEST_LANGUAGE.testRelationships().get(2).id(), new TestHistory(3, 3, 3)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1),
+                               TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), new TestHistory(5, 5, 5),
+                               TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(), new TestHistory(3, 3, 3)))));
 
         Instant reviewInstant = Instant.now();
         List<DBReviewEvent> events = List.of(
@@ -454,16 +450,16 @@ public class ReviewEventProcessorTests {
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
-        assertEquals(TEST_LANGUAGE.testRelationships().get(2).id(), capturedScheduledReview.testRelationshipId());
+        assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(), capturedScheduledReview.testRelationshipId());
 
         ArgumentCaptor<List<DBLexiconReviewHistory>> historyCaptor = ArgumentCaptor.forClass(List.class);
         verify(reviewSessionDao, times(1)).updateLexiconReviewHistoryBatch(eq(TEST_USERNAME), historyCaptor.capture());
         assertEquals(1, historyCaptor.getValue().size());
         DBLexiconReviewHistory capturedHistory = historyCaptor.getValue().get(0);
 
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(2, 2, 2),
-                            TEST_LANGUAGE.testRelationships().get(1).id(), new TestHistory(5, 5, 5),
-                            TEST_LANGUAGE.testRelationships().get(2).id(), new TestHistory(3, 3, 3)),
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(2, 2, 2),
+                            TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), new TestHistory(5, 5, 5),
+                            TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(), new TestHistory(3, 3, 3)),
                 capturedHistory.testHistory());
     }
 
@@ -487,14 +483,14 @@ public class ReviewEventProcessorTests {
         assertEquals(1, scheduledReviewCaptor.getValue().size());
         DBScheduledReview capturedScheduledReview = scheduledReviewCaptor.getValue().get(0);
 
-        assertEquals(TEST_LANGUAGE.testRelationships().get(0).id(), capturedScheduledReview.testRelationshipId());
+        assertEquals(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), capturedScheduledReview.testRelationshipId());
 
         ArgumentCaptor<List<DBLexiconReviewHistory>> historyCaptor = ArgumentCaptor.forClass(List.class);
         verify(reviewSessionDao, times(1)).updateLexiconReviewHistoryBatch(eq(TEST_USERNAME), historyCaptor.capture());
         assertEquals(1, historyCaptor.getValue().size());
         DBLexiconReviewHistory capturedHistory = historyCaptor.getValue().get(0);
 
-        assertEquals(Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(2, 2, 2)), capturedHistory.testHistory());
+        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(2, 2, 2)), capturedHistory.testHistory());
     }
 
     @Test
@@ -502,7 +498,7 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC),
                         Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), STANDARD_INCORRECT_BOOST, Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC * 2),
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
         Instant reviewInstant = Instant.now();
         List<DBReviewEvent> events = List.of(
@@ -539,7 +535,7 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC),
                         Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), NEAR_MISS_INCORRECT_BOOST, Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC * 2),
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
         Instant reviewInstant = Instant.now();
         List<DBReviewEvent> events = List.of(
@@ -577,7 +573,7 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC),
                         Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), STANDARD_INCORRECT_BOOST, boostExpirationDuration,
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
         Instant reviewInstant = Instant.now();
         List<DBReviewEvent> events = List.of(
@@ -612,7 +608,7 @@ public class ReviewEventProcessorTests {
         when(reviewSessionDao.getLexiconReviewHistoryBatch(LEXICON_ID, TEST_USERNAME, Set.of(REVIEW_WORD_ID))).thenReturn(
                 List.of(new DBLexiconReviewHistory(LEXICON_ID, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC),
                         Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), STANDARD_INCORRECT_BOOST, Duration.ofSeconds((long)(REVIEW_WORD_LAST_DELAY_SEC * 1.1)),
-                        Map.of(TEST_LANGUAGE.testRelationships().get(0).id(), new TestHistory(1, 1, 1)))));
+                        Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
         when(lexiconDao.loadWords(Set.of(REVIEW_WORD_ID))).thenReturn(List.of(
                 buildWord(REVIEW_WORD_ID, Map.of("kana", "kanaVal", "meaning", "meaningVal", "kanji", "kanjiVal"))));
@@ -743,16 +739,16 @@ public class ReviewEventProcessorTests {
 
     private DBReviewEvent buildLearningEvent(Instant reviewInstant) {
         return buildDBReviewEvent(LEARNING_WORD_ID, reviewInstant, ReviewType.Learn,
-                TEST_LANGUAGE.testRelationships().get(TEST_LANGUAGE.testRelationships().size() - 1).testOn(),
-                TEST_LANGUAGE.testRelationships().get(TEST_LANGUAGE.testRelationships().size() - 1).promptWith(),
+                TEST_LANGUAGE.getReviewTestRelationships().get(TEST_LANGUAGE.getReviewTestRelationships().size() - 1).getTestOn().getId(),
+                TEST_LANGUAGE.getReviewTestRelationships().get(TEST_LANGUAGE.getReviewTestRelationships().size() - 1).getPromptWith().getId(),
                 true, false, false);
     }
 
     private DBReviewEvent buildReviewEvent(Instant reviewInstant, int testRelationshipIndex,
                                                   boolean isCorrect, boolean isNearMiss, boolean override) {
         return buildDBReviewEvent(REVIEW_WORD_ID, reviewInstant, ReviewType.Review,
-                TEST_LANGUAGE.testRelationships().get(testRelationshipIndex).testOn(),
-                TEST_LANGUAGE.testRelationships().get(testRelationshipIndex).promptWith(),
+                TEST_LANGUAGE.getReviewTestRelationships().get(testRelationshipIndex).getTestOn().getId(),
+                TEST_LANGUAGE.getReviewTestRelationships().get(testRelationshipIndex).getPromptWith().getId(),
                 isCorrect, isNearMiss, override);
     }
 
@@ -763,7 +759,7 @@ public class ReviewEventProcessorTests {
     }
 
     private DBScheduledReview buildDBScheduledReview(String wordId, Instant scheduledInstant, Duration scheduledTestDelay) {
-        return new DBScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, LEXICON_ID, wordId, ReviewType.Review, TEST_LANGUAGE.testRelationships().get(0).id(),
+        return new DBScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, LEXICON_ID, wordId, ReviewType.Review, TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(),
                 scheduledInstant, scheduledTestDelay, false);
     }
 
