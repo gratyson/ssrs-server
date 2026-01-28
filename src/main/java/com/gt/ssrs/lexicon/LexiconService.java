@@ -2,10 +2,11 @@ package com.gt.ssrs.lexicon;
 
 import com.gt.ssrs.audio.AudioService;
 import com.gt.ssrs.blob.BlobDao;
-import com.gt.ssrs.language.LanguageService;
 import com.gt.ssrs.exception.DaoException;
 import com.gt.ssrs.exception.MappingException;
 import com.gt.ssrs.exception.UserAccessException;
+import com.gt.ssrs.language.Language;
+import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.model.*;
 import com.gt.ssrs.util.FileNameUtil;
 import org.slf4j.Logger;
@@ -29,14 +30,12 @@ public class LexiconService {
 
     private final LexiconDao lexiconDao;
     private final BlobDao blobDao;
-    private final LanguageService languageService;
     private final AudioService audioService;
 
     @Autowired
-    public LexiconService(LexiconDao lexiconDao, BlobDao blobDao, LanguageService languageService, AudioService audioService) {
+    public LexiconService(LexiconDao lexiconDao, BlobDao blobDao, AudioService audioService) {
         this.lexiconDao = lexiconDao;
         this.blobDao = blobDao;
-        this.languageService = languageService;
         this.audioService = audioService;
     }
 
@@ -64,7 +63,6 @@ public class LexiconService {
     }
 
     public List<Word> saveWords(List<Word> words, String lexiconId, String username) {
-
         Language language = getLanguageForLexicon(lexiconId);
 
         List<Word> wordsToSave = new ArrayList<>();
@@ -132,7 +130,7 @@ public class LexiconService {
 
     private Language getLanguageForLexicon(String lexiconId) {
         long languageId = getLexiconLanguageId(lexiconId);
-        return languageService.GetLanguageById(languageId);
+        return Language.getLanguageById(languageId);
     }
 
     private Word saveNewWord(Word word, Language language, String lexiconId) {
@@ -175,19 +173,19 @@ public class LexiconService {
     }
 
     private boolean validateWord(Language language, Word word) {
-        for(WordElement requiredElement : language.requiredElements()) {
-            if (!word.elements().containsKey(requiredElement.id()) || word.elements().get(requiredElement.id()).isBlank()) {
+        for(WordElement requiredElement : language.getRequiredElements()) {
+            if (!word.elements().containsKey(requiredElement.getId()) || word.elements().get(requiredElement.getId()).isBlank()) {
                 log.info("Word missing required element {}, skipping save.", requiredElement);
                 return false;
             }
         }
 
-        for(WordElement validElement : language.validElements()) {
-            if (validElement.validationRegex() != null
-                    && !validElement.validationRegex().isBlank()
-                    && word.elements().containsKey(validElement.id())
-                    && !word.elements().get(validElement.id()).isBlank()
-                    && !Pattern.matches(validElement.validationRegex(), word.elements().get(validElement.id()))) {
+        for(WordElement validElement : language.getValidElements()) {
+            if (validElement.getValidationRegex() != null
+                    && !validElement.getValidationRegex().isBlank()
+                    && word.elements().containsKey(validElement.getId())
+                    && !word.elements().get(validElement.getId()).isBlank()
+                    && !Pattern.matches(validElement.getValidationRegex(), word.elements().get(validElement.getId()))) {
                 log.info("Word element {} does contains an invalid value, skipping save.", validElement.name());
                 return false;
             }

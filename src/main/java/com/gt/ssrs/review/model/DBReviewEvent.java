@@ -1,5 +1,6 @@
 package com.gt.ssrs.review.model;
 
+import com.gt.ssrs.language.TestRelationship;
 import com.gt.ssrs.model.ReviewEvent;
 import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.ReviewType;
@@ -15,6 +16,8 @@ public record DBReviewEvent(Integer eventId, String lexiconId, String wordId, St
     }
 
     public static DBReviewEvent fromReviewEvent(ReviewEvent reviewEvent, Integer eventId, String username, Instant eventInstant) {
+        TestRelationship testRelationship = TestRelationship.getTestRelationshipById(reviewEvent.testRelationshipId());
+
         return new DBReviewEvent(
                 eventId,
                 reviewEvent.lexiconId(),
@@ -23,8 +26,8 @@ public record DBReviewEvent(Integer eventId, String lexiconId, String wordId, St
                 eventInstant,
                 reviewEvent.reviewType(),
                 reviewEvent.reviewMode(),
-                reviewEvent.testOn(),
-                reviewEvent.promptWith(),
+                testRelationship.getTestOn().getId(),
+                testRelationship.getPromptWith().getId(),
                 reviewEvent.isCorrect(),
                 reviewEvent.isNearMiss(),
                 reviewEvent.elapsedTimeMs(),
