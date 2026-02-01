@@ -87,7 +87,7 @@ public class ReviewSessionService {
     }
 
     private TestRelationship getTestRelationFromId(String lexiconId, String relationshipId) {
-        Lexicon lexicon = lexiconService.getLexiconMetadata(lexiconId);
+        LexiconMetadata lexicon = lexiconService.getLexiconMetadata(lexiconId);
         Language language = Language.getLanguageById(lexicon.languageId());
 
         for(TestRelationship testRelationship : language.getReviewTestRelationships()) {
@@ -204,7 +204,7 @@ public class ReviewSessionService {
     }
 
     public List<List<WordReview>> generateLearningSession(String lexiconId, int wordCnt, String username) {
-        Lexicon lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
+        LexiconMetadata lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
         Language language = Language.getLanguageById(lexiconMetadata.languageId());
 
         List<Word> wordsToLearn = wordReviewHelper.getWordsToLearn(lexiconId, username, wordCnt);
@@ -283,7 +283,7 @@ public class ReviewSessionService {
 
 
     public List<WordReview> generateReviewSession(String lexiconId, Optional<String> reviewRelationShip, Optional<Instant> cutoffInstant, int maxWordCnt, String username) {
-        Lexicon lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
+        LexiconMetadata lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
         Language language = Language.getLanguageById(lexiconMetadata.languageId());
 
         if (maxWordCnt <= 0 || maxWordCnt > MAX_REVIEW_SIZE) {
@@ -400,7 +400,7 @@ public class ReviewSessionService {
     }
 
     private void verifyUserAccessAllowed(String lexiconId, String username) {
-        Lexicon lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
+        LexiconMetadata lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
 
         if (lexiconMetadata == null) {
             throw new IllegalArgumentException("Lexicon " + lexiconId + " does not exist");
@@ -409,7 +409,7 @@ public class ReviewSessionService {
         verifyUserAccessAllowed(lexiconMetadata, username);
     }
 
-    private void verifyUserAccessAllowed(Lexicon lexiconMetadata, String username) {
+    private void verifyUserAccessAllowed(LexiconMetadata lexiconMetadata, String username) {
         if (!lexiconMetadata.owner().equals(username)) {
             String errMsg = "User " + username + " does not have access to review lexicon " + lexiconMetadata.id();
 

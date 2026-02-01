@@ -9,16 +9,18 @@ import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.Word;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest
+@ExtendWith(SpringExtension.class)
 public class WordReviewHelperTests {
 
     private static final Language TEST_LANGUAGE = Language.Japanese;
@@ -26,12 +28,15 @@ public class WordReviewHelperTests {
     private static final String TEST_USERNAME = "testUsername";
     private static final String KANA_ELEMENT_VALUE = "よゆうをかます";
     private static final String KANJI_ELEMENT_VALUE = "低";
-    private static final Word WORD_1 = new Word(UUID.randomUUID().toString(), TEST_USERNAME,
-            Map.of("kana", KANA_ELEMENT_VALUE, "meaning", "test meaning", "kanji", KANJI_ELEMENT_VALUE), "n", List.of());
-    private static final Word WORD_2 = new Word(UUID.randomUUID().toString(), TEST_USERNAME,
-            Map.of("kana", KANA_ELEMENT_VALUE + "2", "meaning", "test meaning2", "kanji", KANJI_ELEMENT_VALUE + "2"), "n", List.of());
-    private static final Word WORD_3 = new Word(UUID.randomUUID().toString(), TEST_USERNAME,
-            Map.of("kana", KANA_ELEMENT_VALUE + "3", "meaning", "test meaning3", "kanji", KANJI_ELEMENT_VALUE + "3"), "n", List.of());
+    private static final Word WORD_1 = new Word(UUID.randomUUID().toString(), LEXICON_ID, TEST_USERNAME,
+            Map.of("kana", KANA_ELEMENT_VALUE, "meaning", "test meaning", "kanji", KANJI_ELEMENT_VALUE),
+            "n", List.of(), Instant.EPOCH, Instant.now());
+    private static final Word WORD_2 = new Word(UUID.randomUUID().toString(), LEXICON_ID, TEST_USERNAME,
+            Map.of("kana", KANA_ELEMENT_VALUE + "2", "meaning", "test meaning2", "kanji", KANJI_ELEMENT_VALUE + "2"),
+            "n", List.of(), Instant.EPOCH, Instant.now());
+    private static final Word WORD_3 = new Word(UUID.randomUUID().toString(), LEXICON_ID, TEST_USERNAME,
+            Map.of("kana", KANA_ELEMENT_VALUE + "3", "meaning", "test meaning3", "kanji", KANJI_ELEMENT_VALUE + "3"),
+            "n", List.of(), Instant.EPOCH, Instant.now());
 
     private static final List<String> SIMILAR_ELEMENT_VALUES = List.of("かたかな", "ことば", "おくりがな", "なりあがる", "くたくた", "ごうう", "うりとばす", "ちじょう", "ごうがん", "さしいれる", "よゆうをかます");
     private static final List<String> ALL_SIMILAR_ELEMENT_CHARACTERS = Arrays.stream("かたなことばおくりがあるごうすちじょんさしいれよゆをま".split("(?!^)")).toList();

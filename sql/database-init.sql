@@ -114,157 +114,6 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
     EXECUTE FUNCTION "RowUpdateTimestamp"();
 
 
--- Table: language
-
--- DROP TABLE IF EXISTS language;
-
-CREATE TABLE IF NOT EXISTS language
-(
-    id numeric NOT NULL,
-    display_name character varying(128) COLLATE pg_catalog."default",
-    font character varying(64) COLLATE pg_catalog."default",
-    audio_file_regex character varying(64) COLLATE pg_catalog."default",
-    tests_to_double numeric,
-    CONSTRAINT language_pkey PRIMARY KEY (id)
-)
-
-TABLESPACE pg_default;
-
-
--- Table: word_elements
-
--- DROP TABLE IF EXISTS word_elements;
-
-CREATE TABLE IF NOT EXISTS word_elements
-(
-    id character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    name character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    abbreviation character varying(16) COLLATE pg_catalog."default",
-    weight numeric,
-    apply_language_font boolean,
-    test_time_multiplier numeric,
-    validation_regex character varying(255) COLLATE pg_catalog."default",
-    description character varying(255) COLLATE pg_catalog."default",
-    CONSTRAINT word_elements_pkey PRIMARY KEY (id)
-)
-
-TABLESPACE pg_default;
-
-
--- Table: language_elements
-
--- DROP TABLE IF EXISTS language_elements;
-
-CREATE TABLE IF NOT EXISTS language_elements
-(
-    language_id numeric NOT NULL,
-    word_element_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    required boolean,
-    core boolean,
-    ordinal numeric,
-    dedupe boolean,
-    show_in_overview boolean,
-    CONSTRAINT language_elements_pkey PRIMARY KEY (language_id, word_element_id),
-    CONSTRAINT language_id FOREIGN KEY (language_id)
-        REFERENCES language (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
-    CONSTRAINT word_element_id FOREIGN KEY (word_element_id)
-        REFERENCES word_elements (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID
-)
-
-TABLESPACE pg_default;
-
-
--- Table: language_test_relationships
-
--- DROP TABLE IF EXISTS language_test_relationships;
-
-CREATE TABLE IF NOT EXISTS language_test_relationships
-(
-    id character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    language_id numeric NOT NULL,
-    test_on character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    prompt_with character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    show_after_test character varying(64) COLLATE pg_catalog."default",
-    ordinal numeric NOT NULL,
-    display_name character varying(255) COLLATE pg_catalog."default",
-    fallback_id character varying(64) COLLATE pg_catalog."default",
-    is_review_relationship boolean,
-    CONSTRAINT language_review_types_pkey PRIMARY KEY (id),
-    CONSTRAINT language_id FOREIGN KEY (language_id)
-        REFERENCES language (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION,
-    CONSTRAINT prompt_with FOREIGN KEY (language_id, prompt_with)
-        REFERENCES language_elements (language_id, word_element_id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
-    CONSTRAINT show_after_test FOREIGN KEY (language_id, show_after_test)
-        REFERENCES language_elements (language_id, word_element_id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
-    CONSTRAINT test_on FOREIGN KEY (language_id, test_on)
-        REFERENCES language_elements (language_id, word_element_id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID
-)
-
-TABLESPACE pg_default;
-
-
-
-
--- Table: language_sequence
-
--- DROP TABLE IF EXISTS language_sequence;
-
-CREATE TABLE IF NOT EXISTS language_sequence
-(
-    seq_id bigint NOT NULL,
-    language_id bigint,
-    review_type character varying(64) COLLATE pg_catalog."default",
-    ordinal bigint,
-    review_mode character varying(64) COLLATE pg_catalog."default",
-    option_count bigint,
-    record_event boolean,
-    relationship_id character varying(64) COLLATE pg_catalog."default",
-    CONSTRAINT language_sequence_pkey PRIMARY KEY (seq_id),
-    CONSTRAINT language_id FOREIGN KEY (language_id)
-        REFERENCES language (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
-    CONSTRAINT relationship_id FOREIGN KEY (relationship_id)
-        REFERENCES language_test_relationships (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID
-)
-
-TABLESPACE pg_default;
-
--- SEQUENCE: language_sequence_id_seq1
-
--- DROP SEQUENCE IF EXISTS language_sequence_id_seq1;
-
-CREATE SEQUENCE IF NOT EXISTS language_sequence_id_seq1
-    INCREMENT 1
-    START 1
-    MINVALUE 1
-    MAXVALUE 9223372036854775807
-    CACHE 1
-    OWNED BY language_sequence.seq_id;
-
-ALTER TABLE IF EXISTS language_sequence
-    ALTER COLUMN seq_id SET DEFAULT nextval('language_sequence_id_seq1'::regclass);
 
 -- Table: users
 
@@ -461,68 +310,6 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
     EXECUTE FUNCTION "RowUpdateTimestamp"();
 
 
--- Table: lexicon_words
-
--- DROP TABLE IF EXISTS lexicon_words;
-
-CREATE TABLE IF NOT EXISTS lexicon_words
-(
-    lexicon_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    word_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    create_instant timestamp with time zone,
-    update_instant timestamp with time zone,
-    create_seq_num bigint NOT NULL,
-    CONSTRAINT lexicon_word_pkey PRIMARY KEY (lexicon_id, word_id)
-)
-
-TABLESPACE pg_default;
-
--- Index: lexicon_words_create_instant_idx
-
--- DROP INDEX IF EXISTS lexicon_words_create_instant_idx;
-
-CREATE INDEX IF NOT EXISTS lexicon_words_create_instant_idx
-    ON lexicon_words USING btree
-    (create_instant ASC NULLS LAST)
-    TABLESPACE pg_default;
-
--- Trigger: RowCreateTimestamp
-
--- DROP TRIGGER IF EXISTS "RowCreateTimestamp" ON lexicon_words;
-
-CREATE OR REPLACE TRIGGER "RowCreateTimestamp"
-    BEFORE INSERT
-    ON lexicon_words
-    FOR EACH ROW
-    EXECUTE FUNCTION "RowCreateTimestamp"();
-
--- Trigger: RowUpdateTimestamp
-
--- DROP TRIGGER IF EXISTS "RowUpdateTimestamp" ON lexicon_words;
-
-CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
-    BEFORE INSERT OR UPDATE
-    ON lexicon_words
-    FOR EACH ROW
-    EXECUTE FUNCTION "RowUpdateTimestamp"();
-
-
--- SEQUENCE: ssrs_prod.lexicon_words_create_seq_num_seq
-
--- DROP SEQUENCE IF EXISTS ssrs_prod.lexicon_words_create_seq_num_seq;
-
-CREATE SEQUENCE IF NOT EXISTS lexicon_words_create_seq_num_seq
-    INCREMENT 1
-    START 1
-    MINVALUE 1
-    MAXVALUE 9223372036854775807
-    CACHE 1
-    OWNED BY lexicon_words.create_seq_num;
-
-ALTER TABLE IF EXISTS lexicon_words
-    ALTER COLUMN create_seq_num SET DEFAULT nextval('lexicon_words_create_seq_num_seq'::regclass);
-
-
 -- Table: lexicon_review_history
 
 -- DROP TABLE IF EXISTS lexicon_review_history;
@@ -541,16 +328,12 @@ CREATE TABLE IF NOT EXISTS lexicon_review_history
     create_instant timestamp with time zone,
     update_instant timestamp with time zone,
     CONSTRAINT lexicon_review_history_pkey PRIMARY KEY (lexicon_id, word_id, username),
-    CONSTRAINT lexicon_words FOREIGN KEY (lexicon_id, word_id)
-        REFERENCES lexicon_words (lexicon_id, word_id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION,
-    CONSTRAINT relationship_id FOREIGN KEY (most_recent_test_relationship_id)
-        REFERENCES language_test_relationships (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION,
     CONSTRAINT username FOREIGN KEY (username)
         REFERENCES users (username) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT word_id FOREIGN KEY (word_id)
+        REFERENCES words (id) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID
@@ -558,6 +341,8 @@ CREATE TABLE IF NOT EXISTS lexicon_review_history
 
 TABLESPACE pg_default;
 
+ALTER TABLE IF EXISTS lexicon_review_history
+    OWNER to postgres;
 -- Index: username_lexicon_learned
 
 -- DROP INDEX IF EXISTS username_lexicon_learned;
@@ -614,21 +399,21 @@ CREATE TABLE IF NOT EXISTS lexicon_word_test_history
     create_instant timestamp with time zone,
     update_instant timestamp with time zone,
     CONSTRAINT lexicon_word_test_history_pkey PRIMARY KEY (lexicon_id, word_id, relationship_id, username),
-    CONSTRAINT lexicon_word_id FOREIGN KEY (lexicon_id, word_id)
-        REFERENCES lexicon_words (lexicon_id, word_id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION,
-    CONSTRAINT relationship_id FOREIGN KEY (relationship_id)
-        REFERENCES language_test_relationships (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION,
     CONSTRAINT username FOREIGN KEY (username)
         REFERENCES users (username) MATCH SIMPLE
         ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT word_id FOREIGN KEY (word_id)
+        REFERENCES words (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
         ON DELETE NO ACTION
+        NOT VALID
 )
 
 TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS lexicon_word_test_history
+    OWNER to postgres;
 
 -- Trigger: RowCreateTimestamp
 
@@ -658,7 +443,6 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
 CREATE TABLE IF NOT EXISTS scheduled_review
 (
     id character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    owner character varying(255) COLLATE pg_catalog."default",
     lexicon_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
     word_id character varying(64) COLLATE pg_catalog."default" NOT NULL,
     scheduled_test_time timestamp with time zone NOT NULL,
@@ -668,14 +452,10 @@ CREATE TABLE IF NOT EXISTS scheduled_review
     review_type character varying(64) COLLATE pg_catalog."default",
     create_instant timestamp with time zone,
     update_instant timestamp with time zone,
+    owner character varying(255) COLLATE pg_catalog."default",
     CONSTRAINT scheduled_review_pkey PRIMARY KEY (id),
-    CONSTRAINT lexicon_word FOREIGN KEY (lexicon_id, word_id)
-        REFERENCES lexicon_words (lexicon_id, word_id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
-    CONSTRAINT test_relationship FOREIGN KEY (test_relationship_id)
-        REFERENCES language_test_relationships (id) MATCH SIMPLE
+    CONSTRAINT word_id FOREIGN KEY (word_id)
+        REFERENCES words (id) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID
@@ -683,6 +463,8 @@ CREATE TABLE IF NOT EXISTS scheduled_review
 
 TABLESPACE pg_default;
 
+ALTER TABLE IF EXISTS scheduled_review
+    OWNER to postgres;
 -- Index: lexiconId-scheduledTestTime-completed
 
 -- DROP INDEX IF EXISTS "lexiconId-scheduledTestTime-completed";
@@ -721,7 +503,7 @@ CREATE OR REPLACE TRIGGER "RowUpdateTimestamp"
 
 CREATE TABLE IF NOT EXISTS review_events
 (
-    event_id bigint NOT NULL,
+    event_id bigint NOT NULL DEFAULT nextval('review_events_id_seq1'::regclass),
     lexicon_id character varying(255) COLLATE pg_catalog."default" NOT NULL,
     word_id character varying(255) COLLATE pg_catalog."default" NOT NULL,
     review_type character varying(255) COLLATE pg_catalog."default",
@@ -739,13 +521,12 @@ CREATE TABLE IF NOT EXISTS review_events
     override boolean,
     scheduled_review_id character varying(64) COLLATE pg_catalog."default",
     CONSTRAINT review_events_pkey PRIMARY KEY (event_id),
-    CONSTRAINT lexicon_word_id FOREIGN KEY (lexicon_id, word_id)
-        REFERENCES lexicon_words (lexicon_id, word_id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
     CONSTRAINT scheduled_review_id FOREIGN KEY (scheduled_review_id)
         REFERENCES scheduled_review (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION,
+    CONSTRAINT word_id FOREIGN KEY (word_id)
+        REFERENCES words (id) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID
@@ -753,21 +534,8 @@ CREATE TABLE IF NOT EXISTS review_events
 
 TABLESPACE pg_default;
 
--- SEQUENCE: review_events_id_seq1
-
--- DROP SEQUENCE IF EXISTS review_events_id_seq1;
-
-CREATE SEQUENCE IF NOT EXISTS review_events_id_seq1
-    INCREMENT 1
-    START 1
-    MINVALUE 1
-    MAXVALUE 9223372036854775807
-    CACHE 1
-    OWNED BY review_events.event_id;
-
 ALTER TABLE IF EXISTS review_events
-    ALTER COLUMN event_id SET DEFAULT nextval('review_events_id_seq1'::regclass);
-
+    OWNER to postgres;
 -- Index: username_lexicon_processed
 
 -- DROP INDEX IF EXISTS username_lexicon_processed;

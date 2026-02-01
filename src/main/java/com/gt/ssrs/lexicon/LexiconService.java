@@ -66,8 +66,6 @@ public class LexiconService {
         Language language = getLanguageForLexicon(lexiconId);
 
         List<Word> wordsToSave = new ArrayList<>();
-        List<Word> wordsToAttach = new ArrayList<>();
-        List<Word> savedWords = new ArrayList<>();
 
         for(Word word : words) {
             // Logic for updating words:
@@ -82,16 +80,17 @@ public class LexiconService {
                 Word existingWord = lexiconDao.loadWord(word.id());
 
                 if (existingWord == null) {
-                    wordToSave = buildWordToSave(word, username);
+                    wordToSave = buildWordToSave(lexiconId, word, username);
                 } else if (existingWord.owner().equals(username)) {
-                    wordToSave = buildWordToSave(word, username, existingWord.audioFiles());
+                    wordToSave = buildWordToSave(lexiconId, word, username, existingWord.audioFiles());
                 }
             } else {
                 Word duplicateWord = lexiconDao.findDuplicateWordInOtherLexicons(language, lexiconId, username, word);
                 if (duplicateWord != null) {
-                    wordsToAttach.add(duplicateWord);
+                    // TODO: Return skipped duplicates with option to force?
+                    //wordsToAttach.add(duplicateWord);
                 } else {
-                    wordToSave = buildWordToSave(word, username);
+                    wordToSave = buildWordToSave(lexiconId, word, username);
                 }
             }
 
@@ -100,19 +99,19 @@ public class LexiconService {
             }
         }
 
-        wordsToAttach.addAll(lexiconDao.createWords(language, lexiconId, wordsToSave));
-        savedWords.addAll(lexiconDao.attachWordsToLexicon(lexiconId, wordsToAttach, username));
+
+        List<Word> savedWords = lexiconDao.createWords(language, lexiconId, wordsToSave);
 
         log.info("Saved {} new words in lexicon {}. {} duplicate words were skipped.", savedWords.size(), lexiconId, words.size() - savedWords.size());
 
         return savedWords;
     }
 
-    private Word buildWordToSave(Word word, String username) {
-        return buildWordToSave(word, username, word.audioFiles());
+    private Word buildWordToSave(String lexiconId, Word word, String username) {
+        return buildWordToSave(lexiconId, word, username, word.audioFiles());
     }
 
-    private Word buildWordToSave(Word word, String username, List<String> audioFiles) {
+    private Word buildWordToSave(String lexiconId, Word word, String username, List<String> audioFiles) {
         Map<String, String> processedElements =
                 word.elements()
                     .entrySet()
@@ -121,7 +120,7 @@ public class LexiconService {
 
         String wordId = word.id() != null && !word.id().isBlank() ? word.id() : UUID.randomUUID().toString();
 
-        return new Word(wordId, username, processedElements, word.attributes().strip(), audioFiles);
+        return new Word(wordId, lexiconId, username, processedElements, word.attributes().strip(), audioFiles, null, null);
     }
 
     private boolean saveExistingWord(Word word) {
@@ -141,34 +140,18 @@ public class LexiconService {
         return null;
     }
 
-    private Word attachWordToLexicon(String lexiconId, Word word, String username) {
-        if (lexiconDao.attachWordToLexicon(lexiconId, word.id(), username) > 0) {
-            return word;
-        }
-
-        return null;
-    }
-
     public void deleteWords(String lexiconId, List<String> wordIds, String username) {
         verifyCanEditLexicon(lexiconId, username);
 
         List<Word> existingWords = lexiconDao.loadWords(wordIds);
         for(Word word : existingWords) {
-            deleteWord(lexiconId, word);
-        }
-    }
-
-    private void deleteWord(String lexiconId, Word word) {
-        lexiconDao.removeWordFromLexicon(lexiconId, word.id());
-        if (lexiconDao.attachedLexiconCount(word.id()) == 0) {
-            log.info("Deleting word: {}", word.id());
-
-            // Intentionally ignoring ownership -- always delete the word if it would
-            // otherwise be left orphaned
-            blobDao.deleteAudioFiles(audioService.GetAudioFilesForWord(word.id()));
-            lexiconDao.deleteWord(word.id());
-        } else {
-            log.info("Removed word {} from lexicon {}. Not deleting word as it is attached to another lexicon", word.id(), lexiconId);
+            if (username.equals(word.owner())) {
+                log.info("Deleting word: {}", word.id());
+                blobDao.deleteAudioFiles(audioService.GetAudioFilesForWord(word.id()));
+                lexiconDao.deleteWord(word.id());
+            } else {
+                log.info("User {} attempted to delete non-owned word {}", username, word.id());
+            }
         }
     }
 
@@ -224,12 +207,8 @@ public class LexiconService {
         return true;
     }
 
-    public Lexicon getLexicon(String id) {
-        return lexiconDao.getLexicon(id);
-    }
-
     public long getLexiconLanguageId(String lexiconId) {
-        Lexicon lexiconMetadata = lexiconDao.getLexiconMetadata(lexiconId);
+        LexiconMetadata lexiconMetadata = lexiconDao.getLexiconMetadata(lexiconId);
         if (lexiconMetadata != null && lexiconMetadata.languageId() > 0) {
             return lexiconMetadata.languageId();
         }
@@ -239,28 +218,28 @@ public class LexiconService {
         throw new MappingException(errMsg);
     }
 
-    public List<Lexicon> loadAllLexiconMetadata(String username) {
+    public List<LexiconMetadata> loadAllLexiconMetadata(String username) {
         return lexiconDao.getAllLexiconMetadata(username);
     }
 
-    public Lexicon getLexiconMetadata(String id) {
+    public LexiconMetadata getLexiconMetadata(String id) {
         return lexiconDao.getLexiconMetadata(id);
     }
 
-    public List<Lexicon> getLexiconMetadatas(Collection<String> ids) {
+    public List<LexiconMetadata> getLexiconMetadatas(Collection<String> ids) {
         return lexiconDao.getLexiconMetadatas(ids);
     }
 
     // Saves the specified lexicon metadata and image. If the metadata does not specify id, creates
     // a new lexicon. Returns the saved metadata (including new id and image file) on success, null if not.
-    public Lexicon saveLexiconMetadata(String username, Lexicon lexiconMetadata, MultipartFile newImageFile) {
+    public LexiconMetadata saveLexiconMetadata(String username, LexiconMetadata lexiconMetadata, MultipartFile newImageFile) {
 
         try {
 
             if (lexiconMetadata.id() == null || lexiconMetadata.id().isEmpty()) {
                 String newId = UUID.randomUUID().toString();
                 String imageFileName = updateImageBlobDataAsNeeded(newId, lexiconMetadata, newImageFile);
-                Lexicon lexiconMetadataToSave = getLexiconMetadataToSave(newId, username, lexiconMetadata, imageFileName);
+                LexiconMetadata lexiconMetadataToSave = getLexiconMetadataToSave(newId, username, lexiconMetadata, imageFileName);
 
                 if (lexiconDao.createLexiconMetadata(newId, lexiconMetadataToSave) == 0) {
                     log.warn("Unable to create row for new lexicon " + lexiconMetadata.title());
@@ -269,11 +248,11 @@ public class LexiconService {
 
                 return lexiconMetadataToSave;
             } else {
-                Lexicon oldLexiconMetadata = lexiconDao.getLexiconMetadata(lexiconMetadata.id());
+                LexiconMetadata oldLexiconMetadata = lexiconDao.getLexiconMetadata(lexiconMetadata.id());
                 verifyCanEditLexicon(oldLexiconMetadata, username);
 
                 String imageFileName = updateImageBlobDataAsNeeded(lexiconMetadata.id(), lexiconMetadata, newImageFile);
-                Lexicon lexiconMetadataToSave = getLexiconMetadataToSave(lexiconMetadata.id(), username, lexiconMetadata, imageFileName);
+                LexiconMetadata lexiconMetadataToSave = getLexiconMetadataToSave(lexiconMetadata.id(), username, lexiconMetadata, imageFileName);
                 int rowsUpdated = imageFileName.isBlank() ? lexiconDao.updateLexiconMetadataNoImageUpdate(lexiconMetadataToSave) : lexiconDao.updateLexiconMetadata(lexiconMetadataToSave);
 
                 if (rowsUpdated == 0) {
@@ -292,24 +271,23 @@ public class LexiconService {
 
     }
 
-    private static Lexicon getLexiconMetadataToSave(String newId, String username, Lexicon uploadedLexiconMetadata, String newImageFileName) {
-        return new Lexicon(
+    private static LexiconMetadata getLexiconMetadataToSave(String newId, String username, LexiconMetadata uploadedLexiconMetadata, String newImageFileName) {
+        return new LexiconMetadata(
                 newId,
                 username,
                 uploadedLexiconMetadata.title(),
                 uploadedLexiconMetadata.description(),
                 uploadedLexiconMetadata.languageId(),
-                !newImageFileName.isBlank() ? newImageFileName : uploadedLexiconMetadata.imageFileName(),
-                new ArrayList<>());
+                !newImageFileName.isBlank() ? newImageFileName : uploadedLexiconMetadata.imageFileName());
     }
 
-    private String updateImageBlobDataAsNeeded(String newId, Lexicon lexiconMetadata, MultipartFile newImageFile) throws IOException {
+    private String updateImageBlobDataAsNeeded(String newId, LexiconMetadata lexiconMetadata, MultipartFile newImageFile) throws IOException {
         if (newImageFile != null && newImageFile.getBytes().length > 0) {
             String newImageFileName = getImageFileName(newId, newImageFile.getOriginalFilename());
             ByteBuffer bytes = ByteBuffer.wrap(newImageFile.getBytes());
 
             if (lexiconMetadata.id() != null && !lexiconMetadata.id().isEmpty()) {
-                Lexicon oldLexiconMetadata = getLexiconMetadata(lexiconMetadata.id());
+                LexiconMetadata oldLexiconMetadata = getLexiconMetadata(lexiconMetadata.id());
 
                 if (oldLexiconMetadata != null && oldLexiconMetadata.imageFileName() != null && !oldLexiconMetadata.imageFileName().isEmpty()) {
                     log.info("Deleting image file \"" + oldLexiconMetadata.imageFileName() + "\".");
@@ -344,7 +322,7 @@ public class LexiconService {
     }
 
     private void deleteLexiconImage(String lexiconId) {
-        Lexicon lexiconMetadata = getLexiconMetadata(lexiconId);
+        LexiconMetadata lexiconMetadata = getLexiconMetadata(lexiconId);
         String imageFileName = lexiconMetadata.imageFileName();
         if (imageFileName != null && !imageFileName.isBlank()) {
             blobDao.deleteImageFile(imageFileName);
@@ -364,14 +342,14 @@ public class LexiconService {
     }
 
     private Word withUsername(Word word, String username) {
-        return new Word(word.id(), username, word.elements(), word.attributes(), word.audioFiles());
+        return new Word(word.id(), word.lexiconId(), username, word.elements(), word.attributes(), word.audioFiles(), word.createInstant(), word.updateInstant());
     }
 
     private void verifyCanEditLexicon(String lexiconId, String username) {
         verifyCanEditLexicon(getLexiconMetadata(lexiconId), username);
     }
 
-    private void verifyCanEditLexicon(Lexicon lexiconMetadata, String username) {
+    private void verifyCanEditLexicon(LexiconMetadata lexiconMetadata, String username) {
         if (!lexiconMetadata.owner().equals(username)) {
             String errMsg = "User does not permission to edit lexicon " + lexiconMetadata.id();
 

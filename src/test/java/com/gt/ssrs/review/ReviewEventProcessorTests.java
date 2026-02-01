@@ -1,6 +1,5 @@
 package com.gt.ssrs.review;
 
-
 import com.gt.ssrs.language.Language;
 import com.gt.ssrs.lexicon.LexiconDao;
 import com.gt.ssrs.review.model.DBLexiconReviewHistory;
@@ -9,9 +8,10 @@ import com.gt.ssrs.review.model.DBScheduledReview;
 import com.gt.ssrs.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest
+@ExtendWith(SpringExtension.class)
 public class ReviewEventProcessorTests {
 
     private static final Language TEST_LANGUAGE = Language.Japanese;
@@ -53,7 +53,7 @@ public class ReviewEventProcessorTests {
         eventIdCounter = 0;
 
         when(lexiconDao.getLexiconMetadata(LEXICON_ID)).thenReturn(
-                new Lexicon(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), "", List.of()));
+                new LexiconMetadata(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), ""));
 
         when(lexiconDao.loadWords(Set.of(REVIEW_WORD_ID, LEARNING_WORD_ID))).thenReturn(List.of(
                 buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji")),
@@ -768,6 +768,6 @@ public class ReviewEventProcessorTests {
     }
 
     private Word buildWord(String wordId, Map<String, String> elements) {
-        return new Word(wordId, TEST_USERNAME, elements, "n", List.of());
+        return new Word(wordId, LEXICON_ID, TEST_USERNAME, elements, "n", List.of(), Instant.EPOCH, Instant.now());
     }
 }

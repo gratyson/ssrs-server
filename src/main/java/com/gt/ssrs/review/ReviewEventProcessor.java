@@ -2,7 +2,6 @@ package com.gt.ssrs.review;
 
 import com.gt.ssrs.language.Language;
 import com.gt.ssrs.language.TestRelationship;
-import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.LexiconDao;
 import com.gt.ssrs.model.*;
 import com.gt.ssrs.review.model.DBLexiconReviewHistory;
@@ -94,7 +93,7 @@ public class ReviewEventProcessor {
     }
 
     private List<FutureReviewEvent> getFutureReviewEvents(String lexiconId, String username, Instant cutoff) {
-        Lexicon lexiconMetadata = lexiconDao.getLexiconMetadata(lexiconId);
+        LexiconMetadata lexiconMetadata = lexiconDao.getLexiconMetadata(lexiconId);
         Language language = Language.getLanguageById(lexiconMetadata.languageId());
 
         List<FutureReviewEvent> futureReviewEvents = new ArrayList<>();

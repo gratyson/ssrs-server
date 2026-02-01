@@ -1,6 +1,6 @@
 package com.gt.ssrs.lexicon;
 
-import com.gt.ssrs.model.Lexicon;
+import com.gt.ssrs.model.LexiconMetadata;
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordFilterOptions;
 import com.gt.ssrs.review.ReviewEventProcessor;
@@ -39,13 +39,8 @@ public class LexiconController {
         this.reviewEventProcessor = reviewEventProcessor;
     }
 
-    @GetMapping(value = "/lexicon", produces = "application/json")
-    public Lexicon getLexicon(@RequestParam(value = "id") String lexiconId) {
-        return lexiconService.getLexicon(lexiconId);
-    }
-
     @GetMapping(value = "/allLexiconMetadata", produces = "application/json")
-    public List<Lexicon> getAllLexiconMetadata(@AuthenticationPrincipal UserDetails userDetails) {
+    public List<LexiconMetadata> getAllLexiconMetadata(@AuthenticationPrincipal UserDetails userDetails) {
         return lexiconService.loadAllLexiconMetadata(userDetails.getUsername());
     }
 
@@ -55,7 +50,7 @@ public class LexiconController {
                                                                                            HttpServletResponse response) {
         List<LexiconMetadataAndScheduledCounts> lexiconMetadataAndScheduledCounts = new ArrayList<>();
 
-        for(Lexicon lexiconMetadata : lexiconService.loadAllLexiconMetadata(userDetails.getUsername())) {
+        for(LexiconMetadata lexiconMetadata : lexiconService.loadAllLexiconMetadata(userDetails.getUsername())) {
             reviewEventProcessor.processEvents(userDetails.getUsername(), lexiconMetadata.id());
             lexiconMetadataAndScheduledCounts.add(new LexiconMetadataAndScheduledCounts(
                     lexiconMetadata,
@@ -67,16 +62,16 @@ public class LexiconController {
     }
 
     @GetMapping(value = "/lexiconMetadata", produces = "application/json")
-    public Lexicon getLexiconMetadata(@RequestParam(value = "id") String lexiconId) {
+    public LexiconMetadata getLexiconMetadata(@RequestParam(value = "id") String lexiconId) {
         return lexiconService.getLexiconMetadata(lexiconId);
     }
 
     @PutMapping(value = "/saveLexiconMetadata", produces = "application/json")
-    public Lexicon saveLexiconMetadata(@RequestPart("lexicon") Lexicon lexicon,
-                                       @RequestPart(value = "file") MultipartFile file,
-                                       @AuthenticationPrincipal UserDetails userDetails,
-                                       HttpServletResponse response) throws IOException {
-        Lexicon newLexiconMetadata = lexiconService.saveLexiconMetadata(userDetails.getUsername(), lexicon, file);
+    public LexiconMetadata saveLexiconMetadata(@RequestPart("lexicon") LexiconMetadata lexicon,
+                                               @RequestPart(value = "file") MultipartFile file,
+                                               @AuthenticationPrincipal UserDetails userDetails,
+                                               HttpServletResponse response) throws IOException {
+        LexiconMetadata newLexiconMetadata = lexiconService.saveLexiconMetadata(userDetails.getUsername(), lexicon, file);
         if (newLexiconMetadata != null) {
             response.setStatus(HttpServletResponse.SC_ACCEPTED);
             return newLexiconMetadata;
@@ -141,6 +136,6 @@ public class LexiconController {
     private record SaveWordsRequest(String lexiconId, List<Word> words) { }
     private record DeleteWordsRequest(String lexiconId, List<String> wordIds) { }
     private record GetLexiconWordsBatchRequest(String lexiconId, int count, int offset, WordFilterOptions filters) { }
-    private record LexiconMetadataAndScheduledCounts(Lexicon lexiconMetadata, Map<String, Integer> scheduledReviewCounts, boolean hasWordsToLearn) { }
+    private record LexiconMetadataAndScheduledCounts(LexiconMetadata lexiconMetadata, Map<String, Integer> scheduledReviewCounts, boolean hasWordsToLearn) { }
 
 }

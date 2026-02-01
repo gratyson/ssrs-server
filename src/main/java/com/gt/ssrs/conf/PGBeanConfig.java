@@ -1,5 +1,7 @@
 package com.gt.ssrs.conf;
 
+import com.gt.ssrs.blob.BlobDao;
+import com.gt.ssrs.blob.impl.BlobDaoPG;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +15,7 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 @Configuration
-public class BeanConfig {
+public class PGBeanConfig {
 
     @Bean
     public DataSource getDataSource(@Value("${ssrs.datasource.postgres.url}") String url,
@@ -41,5 +43,10 @@ public class BeanConfig {
         conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
         return conn;
+    }
+
+    @Bean
+    public BlobDao getBlobDao(Connection blobDatabaseConnection) {
+        return new BlobDaoPG(blobDatabaseConnection);
     }
 }

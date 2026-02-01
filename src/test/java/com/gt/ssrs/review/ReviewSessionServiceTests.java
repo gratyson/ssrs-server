@@ -11,8 +11,9 @@ import com.gt.ssrs.review.model.DBScheduledReview;
 import com.gt.ssrs.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -23,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest
+@ExtendWith(SpringExtension.class)
 public class ReviewSessionServiceTests {
 
     private static final String TEST_USERNAME = "testUser";
@@ -32,8 +33,8 @@ public class ReviewSessionServiceTests {
     private static final String TEST_WORD_2_ID = UUID.randomUUID().toString();
     private static final String TEST_WORD_3_ID = UUID.randomUUID().toString();
     private static final Language TEST_LANGUAGE = Language.Japanese;
-    private static final Lexicon TEST_LEXICON_METADATA = new Lexicon(TEST_LEXICON_ID, TEST_USERNAME, "Test Lexicon title",
-            "Test Lexicon description", TEST_LANGUAGE.getId(), "", List.of());
+    private static final LexiconMetadata TEST_LEXICON_METADATA = new LexiconMetadata(TEST_LEXICON_ID, TEST_USERNAME, "Test Lexicon title",
+            "Test Lexicon description", TEST_LANGUAGE.getId(), "");
     private static final List<String> SIMILAR_ELEMENT_VALUES = List.of("A", "B", "C");
 
     private static final double FUTURE_EVENT_ALLOWED_RATIO = .8;
@@ -289,7 +290,7 @@ public class ReviewSessionServiceTests {
             wordElements.put(element.getId(), element.getId() + "_" + id);
         }
 
-        return new Word(id, TEST_USERNAME, wordElements, "n", List.of());
+        return new Word(id, TEST_LEXICON_ID, TEST_USERNAME, wordElements, "n", List.of(), Instant.EPOCH, Instant.now());
     }
 
     private static void verifyWordReview(WordReview wordReview, Word word, TestRelationship reviewRelationship, ReviewMode reviewMode, ReviewType reviewType, boolean recordResult, int multipleChoiceCnt) {

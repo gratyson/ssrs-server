@@ -7,9 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 
 @Component
@@ -30,8 +28,9 @@ public class DatabaseMaintenanceTask {
 
     @Scheduled(cron = "@daily")
     public void performDatabaseMaintenance() {
-        purgeOldScheduledReviews();
+        // Review events has a foreign key pointing to scheduled reviews, so it needs to be deleted first
         purgeOldReviewEvents();
+        purgeOldScheduledReviews();
     }
 
     private void purgeOldScheduledReviews() {
