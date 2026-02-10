@@ -1,4 +1,4 @@
-package com.gt.ssrs.review.model;
+package com.gt.ssrs.reviewSession.model;
 
 import com.gt.ssrs.model.ReviewType;
 

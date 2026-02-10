@@ -1,4 +1,4 @@
-package com.gt.ssrs.review;
+package com.gt.ssrs.reviewSession;
 
 import com.gt.ssrs.model.*;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,10 +20,14 @@ public class ReviewSessionController {
 
     private final ReviewSessionService reviewSessionService;
     private final ReviewEventProcessor reviewEventProcessor;
+    private final ScheduledReviewService scheduledReviewService;
 
-    public ReviewSessionController(ReviewSessionService reviewSessionService, ReviewEventProcessor reviewEventProcessor) {
+    public ReviewSessionController(ReviewSessionService reviewSessionService,
+                                   ReviewEventProcessor reviewEventProcessor,
+                                   ScheduledReviewService scheduledReviewService) {
         this.reviewSessionService = reviewSessionService;
         this.reviewEventProcessor = reviewEventProcessor;
+        this.scheduledReviewService = scheduledReviewService;
     }
 
     @PostMapping("saveEvent")
@@ -58,31 +62,10 @@ public class ReviewSessionController {
                 userDetails.getUsername());
     }
 
-    @PostMapping(value = "/lexiconReviewHistoryBatch", consumes = "application/json", produces = "application/json")
-    public List<LexiconReviewHistory> getLexiconWordHistoryBatch(@RequestBody GetLexiconReviewHistoryBatchRequest getLexiconWordHistoryBatchRequest,
-                                                                 @AuthenticationPrincipal UserDetails userDetails) {
-        return reviewSessionService.getLexiconHistoryBatch(getLexiconWordHistoryBatchRequest.lexiconId, userDetails.getUsername(), getLexiconWordHistoryBatchRequest.wordIds);
-    }
-
-    @PostMapping(value = "/saveLexiconReviewHistoryBatch", consumes = "application/json", produces = "application/json")
-    public void saveLexiconWordHistoryBatch(@RequestBody List<LexiconReviewHistory> lexiconWordHistories,
-                                            @AuthenticationPrincipal UserDetails userDetails) {
-        reviewSessionService.saveLexiconHistoryBatch(lexiconWordHistories, userDetails.getUsername());
-    }
-
-    @PostMapping(value = "/deleteLexiconReviewHistoryBatch", consumes = "application/json", produces = "application/json")
-    public void deleteLexiconWordHistoryBatch(@RequestBody DeleteLexiconReviewHistoryRequest deleteLexiconReviewHistoryRequest,
-                                              @AuthenticationPrincipal UserDetails userDetails) {
-        reviewSessionService.deleteLexiconHistoryBatch(
-                deleteLexiconReviewHistoryRequest.lexiconId,
-                deleteLexiconReviewHistoryRequest.wordIds,
-                userDetails.getUsername());
-    }
-
     @PostMapping(value = "/adjustNextReviewTimes", consumes = "application/json", produces = "application/json")
     public void adjustNextReviewTimes(@RequestBody AdjustNextReviewTimesRequest adjustNextReviewTimesRequest,
                                       @AuthenticationPrincipal UserDetails userDetails) {
-        reviewSessionService.adjustNextReviewTimes(
+        scheduledReviewService.adjustNextReviewTimes(
                 adjustNextReviewTimesRequest.lexiconId,
                 adjustNextReviewTimesRequest.adjustment,
                 userDetails.getUsername());
@@ -97,8 +80,6 @@ public class ReviewSessionController {
 
     private record GenerateLearningSessionRequest(String lexiconId, int wordCnt) { }
     private record GenerateReviewSessionRequest(String lexiconId, String testRelationship, int maxWordCnt, Optional<Instant> cutoff) { }
-    private record GetLexiconReviewHistoryBatchRequest(String lexiconId, Collection<String> wordIds) { }
-    private record DeleteLexiconReviewHistoryRequest(String lexiconId, Collection<String> wordIds) { }
     private record AdjustNextReviewTimesRequest(String lexiconId, Duration adjustment) { }
 }
 

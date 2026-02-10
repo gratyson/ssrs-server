@@ -1,13 +1,16 @@
-package com.gt.ssrs.review;
+package com.gt.ssrs.reviewSession;
 
 import com.gt.ssrs.fuzzy.DatasetFuzzyMatcher;
 import com.gt.ssrs.language.Language;
 import com.gt.ssrs.language.TestRelationship;
 import com.gt.ssrs.language.WordElement;
-import com.gt.ssrs.lexicon.LexiconDao;
-import com.gt.ssrs.lexicon.model.TestOnWordPair;
+import com.gt.ssrs.lexicon.LexiconService;
+import com.gt.ssrs.word.WordService;
+import com.gt.ssrs.word.model.TestOnWordPair;
 import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.Word;
+import com.gt.ssrs.model.WordReviewHistory;
+import com.gt.ssrs.reviewHistory.WordReviewHistoryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class WordReviewHelper {
@@ -28,7 +32,9 @@ public class WordReviewHelper {
     private static final int DEFAULT_MIN_TYPING_TEST_ADDL_CHARACTERS = 6;
     private static final int DEFAULT_MAX_TYPING_TEST_ADDL_CHARACTERS = 8;
 
-    private final LexiconDao lexiconDao;
+    private final WordReviewHistoryService wordReviewHistoryService;
+    private final LexiconService lexiconService;
+    private final WordService wordService;
     private final int testBaseTimeSec;
     private final int testAdditionalTimePerChar;
     private final int minTypingTestChars;
@@ -36,13 +42,17 @@ public class WordReviewHelper {
     private final int maxTypingTestAddlChars;
 
     @Autowired
-    public WordReviewHelper(LexiconDao lexiconDao,
+    public WordReviewHelper(WordReviewHistoryService wordReviewHistoryService,
+                            WordService wordService,
+                            LexiconService lexiconService,
                             @Value("${ssrs.review.testBaseTimeSec}") int testBaseTimeSec,
                             @Value("${ssrs.review.testAdditionalTimePerChar}") int testAdditionalTimePerChar,
                             @Value("${ssrs.review.minTypingTestChars:" + DEFAULT_MIN_TYPING_TEST_CHARACTERS + "}") int minTypingTestChars,
                             @Value("${ssrs.review.minTypingTestAddlChars:" + DEFAULT_MIN_TYPING_TEST_ADDL_CHARACTERS + "}") int minTypingTestAddlChars,
                             @Value("${ssrs.review.maxTypingTestAddlChars:" + DEFAULT_MAX_TYPING_TEST_ADDL_CHARACTERS + "}") int maxTypingTestAddlChars) {
-        this.lexiconDao = lexiconDao;
+        this.wordReviewHistoryService = wordReviewHistoryService;
+        this.lexiconService = lexiconService;
+        this.wordService = wordService;
 
         this.testBaseTimeSec = testBaseTimeSec;
         this.testAdditionalTimePerChar = testAdditionalTimePerChar;
@@ -52,7 +62,9 @@ public class WordReviewHelper {
     }
 
     public List<Word> getWordsToLearn(String lexiconId, String username, int wordCnt) {
-        return lexiconDao.getWordsToLearn(lexiconId, username, wordCnt);
+        List<String> wordIdsToLearn = wordReviewHistoryService.getIdsForWordsToLearn(lexiconId, username, wordCnt);
+
+        return inSameSortedOrder(wordIdsToLearn, wordService.loadWords(wordIdsToLearn));
     }
 
     public Map<WordElement, Map<Word, List<String>>> findSimilarWordElementValues(String lexiconId, Collection<TestOnWordPair> testOnWordPairs) {
@@ -66,7 +78,7 @@ public class WordReviewHelper {
                     .put(pair.word(),
                          fuzzyMatchers
                                  .computeIfAbsent(pair.testOn(),
-                                                  k -> new DatasetFuzzyMatcher(lexiconDao.getUniqueElementValues(lexiconId, pair.testOn(), MAX_VALUES_FOR_FUZZY_MATCHING)))
+                                                  k -> new DatasetFuzzyMatcher(wordService.getUniqueElementValues(lexiconId, pair.testOn(), MAX_VALUES_FOR_FUZZY_MATCHING)))
                                  .findSimilarTo(pair.word().elements().get(pair.testOn().getId()), SIMILAR_WORD_CNT, MAX_DISTANCE));
         }
 
@@ -143,5 +155,47 @@ public class WordReviewHelper {
 
     public static List<String> toCharList(String s) {
         return Arrays.stream(s.split("(?!^)")).toList();
+    }
+
+    public static String getNextTestRelationship(Language language, Word word, WordReviewHistory history) {
+        List<TestRelationship> validRelationshipsForWords = language.getReviewTestRelationships()
+                .stream()
+                .filter(testRelationship -> word.elements().containsKey(testRelationship.getTestOn().getId()) && word.elements().containsKey(testRelationship.getPromptWith().getId()))
+                .collect(Collectors.toUnmodifiableList());
+
+        return getNextTestRelationship(language, validRelationshipsForWords, history);
+    }
+
+    public static String getNextTestRelationship(Language language, List<TestRelationship> validRelationships, WordReviewHistory history) {
+        TestRelationship selectedRelationship = null;
+        int minStreak = Integer.MAX_VALUE;
+
+        for(TestRelationship relationship : validRelationships) {
+            if (!relationship.getId().equals(history.mostRecentTestRelationshipId())) {
+
+                int streak = history.testHistory() == null || !history.testHistory().containsKey(relationship.getId()) ? 0 : history.testHistory().get(relationship.getId()).correctStreak();
+                if (streak < minStreak) {
+                    selectedRelationship = relationship;
+                    minStreak = streak;
+                }
+            }
+        }
+
+        if (selectedRelationship == null) {
+            return language.getReviewTestRelationships().get(0).getId();
+        }
+
+        return selectedRelationship.getId();
+    }
+
+    private List<Word> inSameSortedOrder(List<String> wordIds, List<Word> words) {
+        Map<String, Integer> idPosMap = new HashMap<>();
+        for (int i = 0; i < wordIds.size(); i++) {
+            idPosMap.put(wordIds.get(i), i);
+        }
+
+        return words.stream()
+                .sorted((Comparator.comparingInt(word -> idPosMap.get(word.id()))))
+                .collect(Collectors.toUnmodifiableList());
     }
 }

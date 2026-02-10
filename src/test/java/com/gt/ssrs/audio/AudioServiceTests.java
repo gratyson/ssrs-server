@@ -2,7 +2,7 @@ package com.gt.ssrs.audio;
 
 import com.gt.ssrs.blob.BlobDao;
 import com.gt.ssrs.exception.DaoException;
-import com.gt.ssrs.lexicon.LexiconDao;
+import com.gt.ssrs.word.WordDao;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +24,7 @@ public class AudioServiceTests {
 
     private AudioService audioService;
 
-    @Mock private LexiconDao lexiconDao;
+    @Mock private WordDao wordDao;
     @Mock private BlobDao blobDao;
 
     private static final String WORD_1_ID = "wordId1";
@@ -44,9 +44,9 @@ public class AudioServiceTests {
     @BeforeEach
     public void setup() throws IOException {
         when(blobDao.loadAudioFile(AUDIO_1_FILE_1)).thenReturn(ByteBuffer.wrap(MOCK_FILE_BYTES_1));
-        when(lexiconDao.getAudioFileNamesForWord(WORD_1_ID)).thenReturn(List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2));
-        when(lexiconDao.getAudioFileNamesForWord(WORD_2_ID)).thenReturn(List.of(AUDIO_2_FILE_1));
-        when(lexiconDao.getAudioFileNamesForWordBatch(List.of(WORD_1_ID, WORD_2_ID))).thenReturn(Map.of(WORD_1_ID, List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2), AUDIO_2_FILE_1, List.of(AUDIO_2_FILE_1)));
+        when(wordDao.getAudioFileNamesForWord(WORD_1_ID)).thenReturn(List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2));
+        when(wordDao.getAudioFileNamesForWord(WORD_2_ID)).thenReturn(List.of(AUDIO_2_FILE_1));
+        when(wordDao.getAudioFileNamesForWordBatch(List.of(WORD_1_ID, WORD_2_ID))).thenReturn(Map.of(WORD_1_ID, List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2), AUDIO_2_FILE_1, List.of(AUDIO_2_FILE_1)));
 
         when(AUDIO_FILE_1.getBytes()).thenReturn(MOCK_FILE_BYTES_1);
         when(AUDIO_FILE_2.getBytes()).thenReturn(MOCK_FILE_BYTES_2);
@@ -55,7 +55,7 @@ public class AudioServiceTests {
         when(AUDIO_FILE_2.getOriginalFilename()).thenReturn("file2.mp3");
         when(AUDIO_FILE_3.getOriginalFilename()).thenReturn("file3.mp3");
 
-        audioService = new AudioService(lexiconDao, blobDao);
+        audioService = new AudioService(wordDao, blobDao);
     }
 
     @Test
@@ -87,7 +87,7 @@ public class AudioServiceTests {
     public void testSaveAudio() {
         String expectedFileName = WORD_1_ID + "_3.mp3";
 
-        when(lexiconDao.setAudioFileNameForWord(WORD_1_ID, expectedFileName)).thenReturn(1);
+        when(wordDao.setAudioFileNameForWord(WORD_1_ID, expectedFileName)).thenReturn(1);
 
         assertEquals(expectedFileName, audioService.SaveAudio(WORD_1_ID, AUDIO_FILE_1));
 
@@ -98,7 +98,7 @@ public class AudioServiceTests {
     public void testSaveAudio_FailedSave() {
         String expectedFileName = WORD_1_ID + "_3.mp3";
 
-        when(lexiconDao.setAudioFileNameForWord(WORD_1_ID, expectedFileName)).thenReturn(0);
+        when(wordDao.setAudioFileNameForWord(WORD_1_ID, expectedFileName)).thenReturn(0);
 
         assertEquals("", audioService.SaveAudio(WORD_1_ID, AUDIO_FILE_1));
 
@@ -120,17 +120,17 @@ public class AudioServiceTests {
 
     @Test
     public void testSaveAudioMultiple() throws IOException {
-        when(lexiconDao.getAudioFileNamesForWord(WORD_1_ID)).thenReturn(List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2)).thenReturn(List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2, WORD_1_ID + "_3.mp3"));
-        when(lexiconDao.getAudioFileNamesForWord(WORD_2_ID)).thenReturn(List.of(AUDIO_2_FILE_1)).thenReturn(List.of(AUDIO_2_FILE_1, WORD_2_ID + "_2.mp3"));
+        when(wordDao.getAudioFileNamesForWord(WORD_1_ID)).thenReturn(List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2)).thenReturn(List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2, WORD_1_ID + "_3.mp3"));
+        when(wordDao.getAudioFileNamesForWord(WORD_2_ID)).thenReturn(List.of(AUDIO_2_FILE_1)).thenReturn(List.of(AUDIO_2_FILE_1, WORD_2_ID + "_2.mp3"));
 
         byte[] failedSaveBytes = "failed save".getBytes(StandardCharsets.UTF_8);
         MultipartFile failedSave = mock(MultipartFile.class);
         when(failedSave.getBytes()).thenReturn(failedSaveBytes);
         when(failedSave.getOriginalFilename()).thenReturn("fail.mp3");
 
-        when(lexiconDao.setAudioFileNameForWord(WORD_1_ID, WORD_1_ID + "_3.mp3")).thenReturn(1);
-        when(lexiconDao.setAudioFileNameForWord(WORD_2_ID, WORD_2_ID + "_2.mp3")).thenReturn(1);
-        when(lexiconDao.setAudioFileNameForWord(WORD_2_ID, WORD_2_ID + "_3.mp3")).thenReturn(1);
+        when(wordDao.setAudioFileNameForWord(WORD_1_ID, WORD_1_ID + "_3.mp3")).thenReturn(1);
+        when(wordDao.setAudioFileNameForWord(WORD_2_ID, WORD_2_ID + "_2.mp3")).thenReturn(1);
+        when(wordDao.setAudioFileNameForWord(WORD_2_ID, WORD_2_ID + "_3.mp3")).thenReturn(1);
 
         assertEquals(
                 Map.of(WORD_1_ID, List.of(WORD_1_ID + "_3.mp3"),
@@ -140,7 +140,7 @@ public class AudioServiceTests {
 
     @Test
     public void testDeleteAudio() {
-        when(lexiconDao.deleteAudioFileName(WORD_1_ID, AUDIO_1_FILE_1)).thenReturn(1);
+        when(wordDao.deleteAudioFileName(WORD_1_ID, AUDIO_1_FILE_1)).thenReturn(1);
 
         assertTrue(audioService.DeleteAudio(WORD_1_ID, AUDIO_1_FILE_1));
 
@@ -149,7 +149,7 @@ public class AudioServiceTests {
 
     @Test
     public void testDeleteAudio_FailedSave() {
-        when(lexiconDao.deleteAudioFileName(WORD_1_ID, AUDIO_1_FILE_1)).thenReturn(0);
+        when(wordDao.deleteAudioFileName(WORD_1_ID, AUDIO_1_FILE_1)).thenReturn(0);
 
         assertFalse(audioService.DeleteAudio(WORD_1_ID, AUDIO_1_FILE_1));
 

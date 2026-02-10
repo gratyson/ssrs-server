@@ -1,12 +1,14 @@
-package com.gt.ssrs.review;
+package com.gt.ssrs.reviewSession;
 
 import com.gt.ssrs.language.Language;
 import com.gt.ssrs.language.TestRelationship;
 import com.gt.ssrs.language.WordElement;
-import com.gt.ssrs.lexicon.LexiconDao;
-import com.gt.ssrs.lexicon.model.TestOnWordPair;
+import com.gt.ssrs.lexicon.LexiconService;
+import com.gt.ssrs.word.WordService;
+import com.gt.ssrs.word.model.TestOnWordPair;
 import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.Word;
+import com.gt.ssrs.reviewHistory.WordReviewHistoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,7 +46,9 @@ public class WordReviewHelperTests {
     // How many times to repeat each test to verify the random aspects
     private static final int REPEATED_TEST_COUNT = 4;
 
-    @Mock private LexiconDao lexiconDao;
+    @Mock private WordReviewHistoryService wordReviewHistoryService;
+    @Mock private LexiconService lexiconService;
+    @Mock private WordService wordService;
     private final int testBaseTimeSec = 10;
     private final int testAdditionalTimePerChar = 2;
     private int minTypingTestChars = 8;
@@ -55,16 +59,19 @@ public class WordReviewHelperTests {
 
     @BeforeEach
     public void setup() {
-        wordReviewHelper = new WordReviewHelper(lexiconDao, testBaseTimeSec, testAdditionalTimePerChar, minTypingTestChars, minTypingTestAddlChars, maxTypingTestAddlChars);
+        wordReviewHelper = new WordReviewHelper(wordReviewHistoryService, wordService, lexiconService, testBaseTimeSec, testAdditionalTimePerChar, minTypingTestChars, minTypingTestAddlChars, maxTypingTestAddlChars);
     }
 
     @Test
     public void testGetWordsToLearn() {
-        int wordCnt = 3;
+        List<String> wordIdsToLearn = List.of(WORD_1.id(), WORD_2.id());
+        List<Word> wordsToLearn = List.of(WORD_1, WORD_2);
+        int requestedWordCnt = 3;
 
-        when(lexiconDao.getWordsToLearn(LEXICON_ID, TEST_USERNAME, wordCnt)).thenReturn(List.of(WORD_1));
+        when(wordReviewHistoryService.getIdsForWordsToLearn(LEXICON_ID, TEST_USERNAME, requestedWordCnt)).thenReturn(wordIdsToLearn);
+        when(wordService.loadWords(wordIdsToLearn)).thenReturn(wordsToLearn);
 
-        assertEquals(List.of(WORD_1), wordReviewHelper.getWordsToLearn(LEXICON_ID, TEST_USERNAME, wordCnt));
+        assertEquals(wordsToLearn, wordReviewHelper.getWordsToLearn(LEXICON_ID, TEST_USERNAME, requestedWordCnt));
     }
 
     @Test
@@ -89,8 +96,8 @@ public class WordReviewHelperTests {
             kanjiElements.add("not similar " + i);
         }
 
-        when(lexiconDao.getUniqueElementValues(LEXICON_ID, WordElement.Kana, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING)).thenReturn(kanaElements);
-        when(lexiconDao.getUniqueElementValues(LEXICON_ID, WordElement.Kanji, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING)).thenReturn(kanjiElements);
+        when(wordService.getUniqueElementValues(LEXICON_ID, WordElement.Kana, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING)).thenReturn(kanaElements);
+        when(wordService.getUniqueElementValues(LEXICON_ID, WordElement.Kanji, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING)).thenReturn(kanjiElements);
 
         Map<WordElement, Map<Word, List<String>>> result = wordReviewHelper.findSimilarWordElementValues(LEXICON_ID, words);
 
@@ -109,9 +116,9 @@ public class WordReviewHelperTests {
         assertEquals(WordReviewHelper.SIMILAR_WORD_CNT, kanjiWords.get(WORD_2).size());
         assertTrue(kanjiWords.get(WORD_2).containsAll(expectedSimiarKanji));
 
-        verify(lexiconDao, times(1)).getUniqueElementValues(LEXICON_ID, WordElement.Kana, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING);
-        verify(lexiconDao, times(1)).getUniqueElementValues(LEXICON_ID, WordElement.Kanji, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING);
-        verifyNoMoreInteractions(lexiconDao);
+        verify(wordService, times(1)).getUniqueElementValues(LEXICON_ID, WordElement.Kana, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING);
+        verify(wordService, times(1)).getUniqueElementValues(LEXICON_ID, WordElement.Kanji, WordReviewHelper.MAX_VALUES_FOR_FUZZY_MATCHING);
+        verifyNoMoreInteractions(lexiconService);
     }
 
     @Test

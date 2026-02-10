@@ -1,11 +1,9 @@
-package com.gt.ssrs.review;
+package com.gt.ssrs.reviewSession;
 
-import com.gt.ssrs.review.model.DBLexiconReviewHistory;
-import com.gt.ssrs.review.model.DBReviewEvent;
-import com.gt.ssrs.review.model.DBScheduledReview;
+import com.gt.ssrs.reviewSession.model.DBReviewEvent;
+import com.gt.ssrs.reviewSession.model.DBScheduledReview;
 import com.gt.ssrs.model.ReviewMode;
 import com.gt.ssrs.model.ReviewType;
-import com.gt.ssrs.model.TestHistory;
 import org.postgresql.util.PGInterval;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,37 +63,17 @@ public class ReviewSessionDao {
             "FROM scheduled_review " +
             "WHERE lexicon_id = :lexiconId AND owner = :owner AND word_id IN (:wordIds) AND completed IS NOT TRUE";
 
-    private static final String GET_LEXICON_REVIEW_HISTORY_BATCH_SQL =
-            "SELECT l.word_id, l.learned, l.most_recent_test_time, l.current_test_delay_sec, l.current_boost, l.current_boost_expiration_delay_sec, " +
-                    "h.relationship_id, h.total_tests, h.correct_tests, h.correct_streak " +
-                    "FROM lexicon_review_history l LEFT JOIN lexicon_word_test_history h ON l.lexicon_id = h.lexicon_id AND l.word_id = h.word_id AND l.username = h.username " +
-                    "WHERE l.lexicon_id = :lexiconId AND l.username = :username AND l.word_id IN (:wordIds) " +
-                    "ORDER BY l.word_id";
+    private static final String DELETE_USER_WORD_REVIEW_EVENTS_SQL =
+            "DELETE FROM review_events WHERE lexicon_id = :lexiconId AND username = :username AND word_id IN (:wordIds); " +
+            "DELETE FROM scheduled_review WHERE lexicon_id = :lexiconId AND owner = :username AND word_id IN (:wordIds); ";
 
-    private static final String INSERT_LEXICON_REVIEW_HISTORY_SQL =
-            "INSERT INTO lexicon_review_history " +
-                    "(lexicon_id, word_id, username, learned, most_recent_test_time, current_test_delay_sec, " +
-                    " current_boost, current_boost_expiration_delay_sec) " +
-                "VALUES (:lexiconId, :wordId, :username, :learned, :mostRecentTestTime, :currentTestDelaySec, " +
-                    "    :currentBoost, :currentBoostExpirationDelaySec) " +
-            "ON CONFLICT (lexicon_id, word_id, username) " +
-                "DO UPDATE SET " +
-                    "learned = :learned, most_recent_test_time = :mostRecentTestTime, current_test_delay_sec = :currentTestDelaySec, " +
-                    "current_boost = :currentBoost, current_boost_expiration_delay_sec = :currentBoostExpirationDelaySec ";
-
-    private static final String INSERT_LEXICON_WORD_TEST_HISTORY_SQL =
-            "INSERT INTO lexicon_word_test_history " +
-                "(lexicon_id, word_id, relationship_id, username, total_tests, correct_tests, correct_streak) " +
-                "VALUES (:lexiconId, :wordId, :relationshipId, :username, :totalTests, :correctTests, :correctStreak) " +
-            "ON CONFLICT (lexicon_id, word_id, relationship_id, username) " +
-                "DO UPDATE " +
-                "SET total_tests = :totalTests, correct_tests = :correctTests, correct_streak = :correctStreak ";
-
-    private static final String DELETE_LEXICON_REVIEW_HISTORY_SQL =
+    private static final String DELETE_WORD_REVIEW_EVENTS_SQL =
             "DELETE FROM review_events WHERE lexicon_id = :lexiconId AND word_id IN (:wordIds); " +
-            "DELETE FROM scheduled_review WHERE lexicon_id = :lexiconId AND word_id IN (:wordIds); " +
-            "DELETE FROM lexicon_review_history WHERE lexicon_id = :lexiconId AND word_id IN (:wordIds); " +
-            "DELETE FROM lexicon_word_test_history WHERE lexicon_id = :lexiconId AND word_id IN (:wordIds); ";
+            "DELETE FROM scheduled_review WHERE lexicon_id = :lexiconId AND word_id IN (:wordIds); ";
+
+    private static final String DELETE_ALL_LEXICON_REVIEW_EVENTS_SQL =
+            "DELETE FROM review_events WHERE lexicon_id = :lexiconId; " +
+            "DELETE FROM scheduled_review WHERE lexicon_id = :lexiconId; ";
 
     private static final String ADJUST_NEXT_REVIEW_TIME_SQL =
             "UPDATE scheduled_review " +
@@ -204,107 +182,21 @@ public class ReviewSessionDao {
                 ReviewSessionDao::getDBScheduledReviewFromResultSet);
     }
 
-    public List<DBLexiconReviewHistory> getLexiconReviewHistoryBatch(String lexiconId, String username, Collection<String> wordIds) {
-        if (wordIds == null || wordIds.isEmpty()) {
-            return List.of();
-        }
-
-        return template.query(GET_LEXICON_REVIEW_HISTORY_BATCH_SQL, Map.of("lexiconId", lexiconId, "wordIds", wordIds, "username", username), (rs) -> {
-            List<DBLexiconReviewHistory> lexiconWordHistories = new ArrayList<>();
-
-            String curWordId = null;
-            boolean learned = false;
-            Instant mostRecentTestTime = null;
-            Duration currentTestDelay = null;
-            double currentBoost = 0;
-            Duration currentBoostExpirationDelay = null;
-            Map<String, TestHistory> testHistory = Map.of();
-
-            while (rs.next()) {
-                String wordId = rs.getString("word_id");
-                if (wordId != null) {
-                    if (!wordId.equals(curWordId)) {
-                        if (curWordId != null) {
-                            lexiconWordHistories.add(new DBLexiconReviewHistory(lexiconId, curWordId,
-                                    learned,
-                                    mostRecentTestTime,
-                                    currentTestDelay,
-                                    currentBoost,
-                                    currentBoostExpirationDelay,
-                                    testHistory));
-                        }
-
-                        curWordId = wordId;
-                        mostRecentTestTime = toInstant(rs.getTimestamp("most_recent_test_time"));
-                        learned = rs.getBoolean("learned");
-                        currentTestDelay = Duration.ofSeconds(rs.getLong("current_test_delay_sec"));
-                        currentBoost = rs.getDouble("current_boost");
-                        currentBoostExpirationDelay = Duration.ofSeconds(rs.getLong("current_boost_expiration_delay_sec"));
-                        testHistory = new HashMap<>();
-                    }
-                }
-
-                String relationshipId = rs.getString("relationship_id");
-                if (relationshipId != null && !relationshipId.isBlank()) {
-                    testHistory.put(relationshipId, new TestHistory(
-                            rs.getInt("total_tests"),
-                            rs.getInt("correct_tests"),
-                            rs.getInt("correct_streak")));
-                }
-            }
-
-            if (curWordId != null) {
-                lexiconWordHistories.add(new DBLexiconReviewHistory(lexiconId, curWordId,
-                        learned,
-                        mostRecentTestTime,
-                        currentTestDelay,
-                        currentBoost,
-                        currentBoostExpirationDelay,
-                        testHistory));
-            }
-
-            return lexiconWordHistories;
-        });
+    public void deleteUserScheduledReviewForWords(String lexiconId, Collection<String> wordIds, String username) {
+        template.update(DELETE_USER_WORD_REVIEW_EVENTS_SQL, Map.of(
+                "lexiconId", lexiconId,
+                "wordIds", wordIds,
+                "username", username));
     }
 
-    public int updateLexiconReviewHistoryBatch(String username, List<DBLexiconReviewHistory> wordHistories) {
-        List<SqlParameterSource> wordHistoryParamList = new ArrayList<>();
-        List<SqlParameterSource> testHistoryParamList = new ArrayList<>();
-
-        for(DBLexiconReviewHistory wordHistory : wordHistories) {
-            MapSqlParameterSource params = new MapSqlParameterSource();
-            params.addValue("lexiconId", wordHistory.lexiconId());
-            params.addValue("wordId", wordHistory.wordId());
-            params.addValue("username", username);
-            params.addValue("learned", wordHistory.learned());
-            params.addValue("mostRecentTestTime", Timestamp.from(wordHistory.mostRecentTestTime()));
-            params.addValue("currentTestDelaySec", wordHistory.currentTestDelay().getSeconds());
-            params.addValue("currentBoost", wordHistory.currentBoost());
-            params.addValue("currentBoostExpirationDelaySec", wordHistory.currentBoostExpirationDelay() == null ? null : wordHistory.currentBoostExpirationDelay().getSeconds());
-            wordHistoryParamList.add(params);
-
-            for (Map.Entry<String, TestHistory> testHistory : wordHistory.testHistory().entrySet()) {
-                testHistoryParamList.add(new MapSqlParameterSource(Map.of(
-                        "lexiconId", wordHistory.lexiconId(),
-                        "wordId", wordHistory.wordId(),
-                        "relationshipId", testHistory.getKey(),
-                        "username", username,
-                        "totalTests", testHistory.getValue().totalTests(),
-                        "correctTests", testHistory.getValue().correct(),
-                        "correctStreak", testHistory.getValue().correctStreak())));
-            }
-        }
-
-        int[] rowCnts = template.batchUpdate(INSERT_LEXICON_REVIEW_HISTORY_SQL, wordHistoryParamList.toArray(new SqlParameterSource[0]));
-        template.batchUpdate(INSERT_LEXICON_WORD_TEST_HISTORY_SQL, testHistoryParamList.toArray(new SqlParameterSource[0]));
-
-        return Arrays.stream(rowCnts).sum();
-    }
-
-    public int deleteLexiconHistoryBatch(String lexiconId, Collection<String> wordIds) {
-        return template.update(DELETE_LEXICON_REVIEW_HISTORY_SQL, Map.of(
+    public void deleteWordReviewEvents(String lexiconId, Collection<String> wordIds) {
+        template.update(DELETE_WORD_REVIEW_EVENTS_SQL, Map.of(
                 "lexiconId", lexiconId,
                 "wordIds", wordIds));
+    }
+
+    public void deleteAllLexiconReviewEvents(String lexiconId) {
+        template.update(DELETE_ALL_LEXICON_REVIEW_EVENTS_SQL, Map.of("lexiconId", lexiconId));
     }
 
     public int adjustNextReviewTimes(String lexiconId, Duration adjustment) {

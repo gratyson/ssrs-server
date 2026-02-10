@@ -2,6 +2,12 @@ package com.gt.ssrs.conf;
 
 import com.gt.ssrs.blob.BlobDao;
 import com.gt.ssrs.blob.impl.BlobDaoPG;
+import com.gt.ssrs.lexicon.LexiconDao;
+import com.gt.ssrs.word.WordDao;
+import com.gt.ssrs.lexicon.impl.LexiconDaoPG;
+import com.gt.ssrs.word.impl.WordDaoPG;
+import com.gt.ssrs.reviewHistory.WordReviewHistoryDao;
+import com.gt.ssrs.reviewHistory.impl.WordReviewHistoryDaoPG;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +36,7 @@ public class PGBeanConfig {
         return new NamedParameterJdbcTemplate(dataSource);
     }
 
+
     @Bean
     public Connection getBlobDatabaseConnection(@Value("${ssrs.datasource.postgres.url}") String url,
                                                 @Value("${ssrs.datasource.postgres.username}") String username,
@@ -49,4 +56,20 @@ public class PGBeanConfig {
     public BlobDao getBlobDao(Connection blobDatabaseConnection) {
         return new BlobDaoPG(blobDatabaseConnection);
     }
+
+    @Bean
+    public LexiconDao getLexiconDao(NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
+        return new LexiconDaoPG(namedParameterJdbcTemplate);
+    }
+
+    @Bean
+    public WordDao getWordDao(NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
+        return new WordDaoPG(namedParameterJdbcTemplate);
+    }
+
+    @Bean
+    public WordReviewHistoryDao getWordReviewHistoryDao(NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
+        return new WordReviewHistoryDaoPG(namedParameterJdbcTemplate);
+    }
+
 }

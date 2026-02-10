@@ -9,7 +9,7 @@ public record Word(String id, String lexiconId, String owner, Map<String, String
     public static final Word EMPTY_WORD = new Word("", "", "", Map.of(), "", List.of(), Instant.EPOCH, Instant.EPOCH);
 
     public Word {
-        elements = Collections.unmodifiableMap(elements);
-        audioFiles = Collections.unmodifiableList(audioFiles);
+        elements = elements == null ? null : Collections.unmodifiableMap(elements);
+        audioFiles = audioFiles == null ? null : Collections.unmodifiableList(audioFiles);
     }
 }

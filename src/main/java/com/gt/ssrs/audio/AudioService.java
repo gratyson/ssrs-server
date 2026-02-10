@@ -1,7 +1,7 @@
 package com.gt.ssrs.audio;
 
 import com.gt.ssrs.blob.BlobDao;
-import com.gt.ssrs.lexicon.LexiconDao;
+import com.gt.ssrs.word.WordDao;
 import com.gt.ssrs.exception.DaoException;
 import com.gt.ssrs.util.FileNameUtil;
 import org.slf4j.Logger;
@@ -19,13 +19,13 @@ public class AudioService {
 
     private static final Logger log = LoggerFactory.getLogger(AudioService.class);
 
-    private final LexiconDao lexiconDao;
+    private final WordDao wordDao;
     private final BlobDao blobDao;
 
     @Autowired
-    public AudioService(LexiconDao lexiconDao, BlobDao blobDao) {
+    public AudioService(WordDao wordDao, BlobDao blobDao) {
         this.blobDao = blobDao;
-        this.lexiconDao = lexiconDao;
+        this.wordDao = wordDao;
     }
 
     // Word ID is unused for now. Included now to avoid a full stack update if needed later
@@ -34,12 +34,12 @@ public class AudioService {
     }
 
     public List<String> GetAudioFilesForWord(String wordId) {
-        return lexiconDao.getAudioFileNamesForWord(wordId);
+        return wordDao.getAudioFileNamesForWord(wordId);
     }
 
     public Map<String,List<String>> GetAudioFilesForWordBatch(List<String> wordIds) {
         if (wordIds != null && wordIds.size() > 0) {
-            return lexiconDao.getAudioFileNamesForWordBatch(wordIds);
+            return wordDao.getAudioFileNamesForWordBatch(wordIds);
         }
 
         return new HashMap<>();
@@ -70,7 +70,7 @@ public class AudioService {
         try {
             log.info("Saving new audio file {} for word {}", newFileName, wordId);
             blobDao.saveAudioFile(newFileName, ByteBuffer.wrap(newAudioFile.getBytes()));
-            if (lexiconDao.setAudioFileNameForWord(wordId, newFileName) > 0) {
+            if (wordDao.setAudioFileNameForWord(wordId, newFileName) > 0) {
                 return newFileName;
             }
 
@@ -87,7 +87,7 @@ public class AudioService {
     public boolean DeleteAudio(String wordId, String audioFileName) {
         try {
             blobDao.deleteAudioFile(audioFileName);
-            if (lexiconDao.deleteAudioFileName(wordId, audioFileName) > 0) {
+            if (wordDao.deleteAudioFileName(wordId, audioFileName) > 0) {
                 return true;
             }
         } catch (Exception ex) {
@@ -111,7 +111,7 @@ public class AudioService {
 
 
     private Set<String> GetCurrentFileNamesWithoutExtension(String wordId) {
-        return lexiconDao.getAudioFileNamesForWord(wordId)
+        return wordDao.getAudioFileNamesForWord(wordId)
                 .stream()
                 .map(fileName -> FileNameUtil.RemoveExtension(fileName))
                 .collect(Collectors.toSet());

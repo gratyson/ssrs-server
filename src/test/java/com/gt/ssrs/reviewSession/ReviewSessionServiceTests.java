@@ -1,13 +1,13 @@
-package com.gt.ssrs.review;
+package com.gt.ssrs.reviewSession;
 
 import com.gt.ssrs.language.Language;
 import com.gt.ssrs.language.LearningTestOptions;
 import com.gt.ssrs.language.TestRelationship;
 import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.LexiconService;
-import com.gt.ssrs.lexicon.model.TestOnWordPair;
-import com.gt.ssrs.review.model.DBReviewEvent;
-import com.gt.ssrs.review.model.DBScheduledReview;
+import com.gt.ssrs.word.WordService;
+import com.gt.ssrs.word.model.TestOnWordPair;
+import com.gt.ssrs.reviewSession.model.DBReviewEvent;
 import com.gt.ssrs.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +15,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -37,17 +36,17 @@ public class ReviewSessionServiceTests {
             "Test Lexicon description", TEST_LANGUAGE.getId(), "");
     private static final List<String> SIMILAR_ELEMENT_VALUES = List.of("A", "B", "C");
 
-    private static final double FUTURE_EVENT_ALLOWED_RATIO = .8;
-
     @Mock private ReviewSessionDao reviewSessionDao;
     @Mock private LexiconService lexiconService;
+    @Mock private WordService wordService;
+    @Mock private ScheduledReviewService scheduledReviewService;
     @Mock private WordReviewHelper wordReviewHelper;
 
     private ReviewSessionService reviewSessionService;
 
     @BeforeEach
     public void setup() {
-        reviewSessionService = new ReviewSessionService(reviewSessionDao, lexiconService, wordReviewHelper, FUTURE_EVENT_ALLOWED_RATIO);
+        reviewSessionService = new ReviewSessionService(reviewSessionDao, lexiconService, wordService, scheduledReviewService, wordReviewHelper);
 
         when(lexiconService.getLexiconMetadata(TEST_LEXICON_ID)).thenReturn(TEST_LEXICON_METADATA);
 
@@ -85,20 +84,6 @@ public class ReviewSessionServiceTests {
 
         verify(reviewSessionDao).saveReviewEvent(new DBReviewEvent(null, TEST_LEXICON_ID, TEST_WORD_1_ID, TEST_USERNAME, eventInstant, ReviewType.Review,
                 ReviewMode.TypingTest, WordElement.Kana.getId(), WordElement.Meaning.getId(), true, false, 3000, false), eventId);
-    }
-
-    @Test
-    public void testGetScheduledReviewCounts() {
-        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.empty())).thenReturn(List.of(
-                buildDBScheduledReview(TEST_WORD_1_ID, 2, Instant.now().minusSeconds(60), Duration.ofSeconds(60), false),
-                buildDBScheduledReview(TEST_WORD_2_ID, 1, Instant.now().minusSeconds(60), Duration.ofSeconds(60), false),
-                buildDBScheduledReview(TEST_WORD_3_ID, 2, Instant.now().minusSeconds(60), Duration.ofSeconds(60), false)));
-
-        Map<String, Integer> scheduledReviewCount = reviewSessionService.getScheduledReviewCounts(TEST_USERNAME, TEST_LEXICON_ID, Optional.empty());
-
-        assertEquals(Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(),1,
-                            TEST_LANGUAGE.getReviewTestRelationships().get(2).getId(),2),
-                     scheduledReviewCount);
     }
 
     @Test
@@ -153,16 +138,16 @@ public class ReviewSessionServiceTests {
     @Test
     public void testGenerateReviewSession() {
         Instant scheduledInstant = Instant.now().minusSeconds(60);
-        List<DBScheduledReview> scheduledReviews = List.of(
-                buildDBScheduledReview(TEST_WORD_1_ID, 1, scheduledInstant),
-                buildDBScheduledReview(TEST_WORD_2_ID, 2, scheduledInstant),
-                buildDBScheduledReview(TEST_WORD_3_ID, 0, scheduledInstant));
-        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.empty())).thenReturn(scheduledReviews);
+        List<ScheduledWordReview> scheduledReviews = List.of(
+                buildScheduledWordReview(TEST_WORD_1_ID, 1),
+                buildScheduledWordReview(TEST_WORD_2_ID, 2),
+                buildScheduledWordReview(TEST_WORD_3_ID, 0));
+        when(scheduledReviewService.getCurrentScheduledReviewForLexicon(TEST_LEXICON_ID, TEST_USERNAME, Optional.empty(), Optional.empty())).thenReturn(scheduledReviews);
 
         List<Word> wordsToReview = List.of(buildWord(TEST_WORD_1_ID, false),
                                            buildWord(TEST_WORD_2_ID, false),
                                            buildWord(TEST_WORD_3_ID, true));
-        when(lexiconService.loadWords(List.of(TEST_WORD_1_ID, TEST_WORD_2_ID, TEST_WORD_3_ID))).thenReturn(wordsToReview);
+        when(wordService.loadWords(List.of(TEST_WORD_1_ID, TEST_WORD_2_ID, TEST_WORD_3_ID))).thenReturn(wordsToReview);
 
         List<WordReview> wordReviews = reviewSessionService.generateReviewSession(TEST_LEXICON_ID, Optional.empty(), Optional.empty(), 0, TEST_USERNAME);
 
@@ -188,15 +173,15 @@ public class ReviewSessionServiceTests {
     @Test
     public void testGenerateReviewSession_MaxWordsSet() {
         Instant scheduledInstant = Instant.now().minusSeconds(60);
-        List<DBScheduledReview> scheduledReviews = List.of(
-                buildDBScheduledReview(TEST_WORD_1_ID, 1, scheduledInstant),
-                buildDBScheduledReview(TEST_WORD_2_ID, 2, scheduledInstant),
-                buildDBScheduledReview(TEST_WORD_3_ID, 0, scheduledInstant));
-        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.empty())).thenReturn(scheduledReviews);
+        List<ScheduledWordReview> scheduledReviews = List.of(
+                buildScheduledWordReview(TEST_WORD_1_ID, 1),
+                buildScheduledWordReview(TEST_WORD_2_ID, 2),
+                buildScheduledWordReview(TEST_WORD_3_ID, 0));
+        when(scheduledReviewService.getCurrentScheduledReviewForLexicon(TEST_LEXICON_ID, TEST_USERNAME, Optional.empty(), Optional.empty())).thenReturn(scheduledReviews);
 
         Word word = buildWord(TEST_WORD_1_ID, false);
         List<Word> wordsToReview = List.of(word);
-        when(lexiconService.loadWords(List.of(TEST_WORD_1_ID))).thenReturn(wordsToReview);
+        when(wordService.loadWords(List.of(TEST_WORD_1_ID))).thenReturn(wordsToReview);
 
         List<WordReview> wordReviews = reviewSessionService.generateReviewSession(TEST_LEXICON_ID, Optional.empty(), Optional.empty(), 1, TEST_USERNAME);
 
@@ -219,13 +204,13 @@ public class ReviewSessionServiceTests {
     @Test
     public void testGenerateReviewSession_SpecifyRelationship() {
         Instant scheduledInstant = Instant.now().minusSeconds(60);
-        List<DBScheduledReview> scheduledReviews = List.of(
-                buildDBScheduledReview(TEST_WORD_1_ID, 1, scheduledInstant));
-        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, TEST_LANGUAGE.getReviewTestRelationships().get(1).getId(), Optional.empty())).thenReturn(scheduledReviews);
+        List<ScheduledWordReview> scheduledReviews = List.of(
+                buildScheduledWordReview(TEST_WORD_1_ID, 1));
+        when(scheduledReviewService.getCurrentScheduledReviewForLexicon(TEST_LEXICON_ID, TEST_USERNAME, Optional.of(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId()), Optional.empty())).thenReturn(scheduledReviews);
 
         Word word = buildWord(TEST_WORD_1_ID, false);
         List<Word> wordsToReview = List.of(word);
-        when(lexiconService.loadWords(List.of(TEST_WORD_1_ID))).thenReturn(wordsToReview);
+        when(wordService.loadWords(List.of(TEST_WORD_1_ID))).thenReturn(wordsToReview);
 
         List<WordReview> wordReviews = reviewSessionService.generateReviewSession(TEST_LEXICON_ID, Optional.of(TEST_LANGUAGE.getReviewTestRelationships().get(1).getId()), Optional.empty(), 0, TEST_USERNAME);
 
@@ -244,43 +229,6 @@ public class ReviewSessionServiceTests {
         assertEquals(calcTypingTestButtons(word, relationship.getTestOn().getId()), review.typingTestButtons());
         assertEquals(List.of(), review.multipleChoiceButtons());
     }
-
-    @Test
-    public void testGenerateReviewSession_FutureReview() {
-        Instant cutoffInstant = Instant.now().plusSeconds(60);
-
-        List<DBScheduledReview> scheduledReviews = List.of(
-                buildDBScheduledReview(TEST_WORD_1_ID, 1, Instant.now().minusSeconds(60)),  // Past, include
-                buildDBScheduledReview(TEST_WORD_2_ID, 2, Instant.now().plusSeconds(10)),      // Future, 83% of time has past, include
-                buildDBScheduledReview(TEST_WORD_3_ID, 0, Instant.now().plusSeconds(50)));     // Future, 18% of time pas past, excluded
-        when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, TEST_LEXICON_ID, "", Optional.of(cutoffInstant))).thenReturn(scheduledReviews);
-
-        List<Word> wordsToReview = List.of(buildWord(TEST_WORD_1_ID, false),
-                                           buildWord(TEST_WORD_2_ID, false));
-        when(lexiconService.loadWords(List.of(TEST_WORD_1_ID, TEST_WORD_2_ID))).thenReturn(wordsToReview);
-
-        List<WordReview> wordReviews = reviewSessionService.generateReviewSession(TEST_LEXICON_ID, Optional.empty(), Optional.of(cutoffInstant), 0, TEST_USERNAME);
-
-        assertEquals(2, wordReviews.size());
-        for(int index = 0 ; index < 2; index++) {
-            WordReview review = wordReviews.get(index);
-
-            Word word = wordsToReview.get(index);
-            TestRelationship relationship = TEST_LANGUAGE.getReviewTestRelationships().get((index + 1) % 3);
-
-            assertEquals(TEST_LANGUAGE.getId(), review.languageId());
-            assertEquals(word, review.word());
-            assertNotNull(review.scheduledEventId());
-            assertEquals(relationship, review.testRelationship());
-            assertEquals(ReviewMode.TypingTest, review.reviewMode());
-            assertEquals(ReviewType.Review, review.reviewType());
-            assertTrue(review.recordResult());
-            assertEquals(calcAllowedTime(word, ReviewMode.TypingTest, relationship.getTestOn().getId()), review.allowedTimeSec());
-            assertEquals(calcTypingTestButtons(word, relationship.getTestOn().getId()), review.typingTestButtons());
-            assertEquals(List.of(), review.multipleChoiceButtons());
-        }
-    }
-
 
     private Word buildWord(String id, boolean requiredElementsOnly) {
         Map<String, String> wordElements = new HashMap<>();
@@ -332,14 +280,7 @@ public class ReviewSessionServiceTests {
         return multipleChoiceButtons;
     }
 
-    private static DBScheduledReview buildDBScheduledReview(String wordId, int reviewRelationshipIndex, Instant scheduledTime) {
-        return buildDBScheduledReview(wordId, reviewRelationshipIndex, scheduledTime, Duration.ofSeconds(60), false);
+    private static ScheduledWordReview buildScheduledWordReview(String wordId, int reviewRelationshipIndex) {
+        return new ScheduledWordReview(UUID.randomUUID().toString(), wordId, TEST_LANGUAGE.getReviewTestRelationships().get(reviewRelationshipIndex).getId(), ReviewType.Review);
     }
-
-    private static DBScheduledReview buildDBScheduledReview(String wordId, int reviewRelationshipIndex, Instant scheduledTime, Duration testDelay, boolean completed) {
-        return new DBScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, TEST_LEXICON_ID, wordId, ReviewType.Review,
-                TEST_LANGUAGE.getReviewTestRelationships().get(reviewRelationshipIndex).getId(), scheduledTime, testDelay, completed);
-    }
-
-
 }
