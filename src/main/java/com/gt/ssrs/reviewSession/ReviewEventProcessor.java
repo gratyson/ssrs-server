@@ -27,7 +27,8 @@ public class ReviewEventProcessor {
 
     static final int QUERY_BATCH_SIZE = 1000;
 
-    private final ReviewSessionDao reviewSessionDao;
+    private final ReviewEventDao reviewEventDao;
+    private final ScheduledReviewDao scheduledReviewDao;
     private final LexiconService lexiconService;
     private final WordService wordService;
     private final WordReviewHistoryService wordReviewHistoryService;
@@ -37,7 +38,8 @@ public class ReviewEventProcessor {
     private final double nearMissBoost;
 
     @Autowired
-    public ReviewEventProcessor(ReviewSessionDao reviewSessionDao,
+    public ReviewEventProcessor(ReviewEventDao reviewEventDao,
+                                ScheduledReviewDao scheduledReviewDao,
                                 LexiconService lexiconService,
                                 WordService wordService,
                                 WordReviewHistoryService wordReviewHistoryService,
@@ -45,7 +47,8 @@ public class ReviewEventProcessor {
                                 @Value("${ssrs.learning.nearMissCorrectLearningDelaySec}") int nearMissCorrectDelaySec,
                                 @Value("${ssrs.learning.standardIncorrectBoost}") double standardIncorrectBoost,
                                 @Value("${ssrs.learning.nearMissBoost}") double nearMissBoost) {
-        this.reviewSessionDao = reviewSessionDao;
+        this.reviewEventDao = reviewEventDao;
+        this.scheduledReviewDao = scheduledReviewDao;
         this.lexiconService = lexiconService;
         this.wordService = wordService;
         this.wordReviewHistoryService = wordReviewHistoryService;
@@ -88,7 +91,7 @@ public class ReviewEventProcessor {
                 wordReviewHistoryService.updateWordReviewHistoryBatch(username, newWordHistories);
             }
             if (newScheduledReviews.size() > 0) {
-                reviewSessionDao.createScheduledReviewsBatch(newScheduledReviews, username);
+                scheduledReviewDao.createScheduledReviewsBatch(newScheduledReviews, username);
             }
             markEventsAsProcessed(allEvents);
         }
@@ -96,7 +99,7 @@ public class ReviewEventProcessor {
 
     public LexiconReviewSummary getLexiconReviewSummary(String lexiconId, String username, Instant futureEventCutoff) {
         return new LexiconReviewSummary(wordService.getTotalLexiconWordCount(lexiconId),
-                reviewSessionDao.getTotalLearnedWordCount(lexiconId, username),
+                wordReviewHistoryService.getTotalLearnedWordCount(lexiconId, username),
                 getFutureReviewEvents(lexiconId, username, futureEventCutoff));
     }
 
@@ -106,7 +109,7 @@ public class ReviewEventProcessor {
 
         List<FutureReviewEvent> futureReviewEvents = new ArrayList<>();
 
-        List<DBScheduledReview> scheduledReviews = reviewSessionDao.loadScheduledReviews(username, lexiconId, "", Optional.of(cutoff));
+        List<DBScheduledReview> scheduledReviews = scheduledReviewDao.loadScheduledReviews(username, lexiconId, "", Optional.of(cutoff));
 
         Map<String, WordReviewHistory> reviewHistoryByWordId = wordReviewHistoryService.getWordReviewHistory(lexiconId, username,
                         scheduledReviews.stream().map(review -> review.wordId()).toList())
@@ -146,7 +149,7 @@ public class ReviewEventProcessor {
         List<DBReviewEvent> reviewEventsBatch;
         int lastId = Integer.MIN_VALUE;
         do {
-            reviewEventsBatch = reviewSessionDao.loadUnprocessedReviewEventsForUserBatch(username, lexiconId, lastId, QUERY_BATCH_SIZE);
+            reviewEventsBatch = reviewEventDao.loadUnprocessedReviewEventsForUserBatch(username, lexiconId, lastId, QUERY_BATCH_SIZE);
 
             if (reviewEventsBatch != null && reviewEventsBatch.size() > 0) {
                 allEvents.addAll(reviewEventsBatch);
@@ -322,7 +325,7 @@ public class ReviewEventProcessor {
     }
 
     private void markEventsAsProcessed(List<DBReviewEvent> reviewEvents) {
-        reviewSessionDao.markEventsAsProcessed(reviewEvents);
+        reviewEventDao.markEventsAsProcessed(reviewEvents);
     }
 
     private Duration calculateNextDelayAfterSuccessfulTest(Language language, WordReviewHistory lexiconReviewHistory) {

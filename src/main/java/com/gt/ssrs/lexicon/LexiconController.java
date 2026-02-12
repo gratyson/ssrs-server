@@ -4,6 +4,7 @@ import com.gt.ssrs.delete.DeletionService;
 import com.gt.ssrs.model.LexiconMetadata;
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordFilterOptions;
+import com.gt.ssrs.reviewHistory.WordReviewHistoryService;
 import com.gt.ssrs.reviewSession.ReviewEventProcessor;
 import com.gt.ssrs.reviewSession.ScheduledReviewService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -30,14 +31,21 @@ public class LexiconController {
 
     private final LexiconService lexiconService;
     private final WordService wordService;
+    private final WordReviewHistoryService wordReviewHistoryService;
     private final DeletionService deletionService;
     private final ScheduledReviewService scheduledReviewService;
     private final ReviewEventProcessor reviewEventProcessor;
 
     @Autowired
-    public LexiconController(LexiconService lexiconService, WordService wordService, DeletionService deletionService, ScheduledReviewService scheduledReviewService, ReviewEventProcessor reviewEventProcessor) {
+    public LexiconController(LexiconService lexiconService,
+                             WordService wordService,
+                             WordReviewHistoryService wordReviewHistoryService,
+                             DeletionService deletionService,
+                             ScheduledReviewService scheduledReviewService,
+                             ReviewEventProcessor reviewEventProcessor) {
         this.lexiconService = lexiconService;
         this.wordService = wordService;
+        this.wordReviewHistoryService = wordReviewHistoryService;
         this.deletionService = deletionService;
         this.scheduledReviewService = scheduledReviewService;
         this.reviewEventProcessor = reviewEventProcessor;
@@ -59,7 +67,7 @@ public class LexiconController {
             lexiconMetadataAndScheduledCounts.add(new LexiconMetadataAndScheduledCounts(
                     lexiconMetadata,
                     scheduledReviewService.getScheduledReviewCounts(userDetails.getUsername(), lexiconMetadata.id(), cutoffInstant),
-                    wordService.getLexiconWordsBatch(lexiconMetadata.id(), userDetails.getUsername(), 1, 0, null, new WordFilterOptions(Map.of(), null, false, null)).size() > 0));
+                    wordReviewHistoryService.hasWordsToLearn(lexiconMetadata.id(), userDetails.getUsername())));
         }
 
         return lexiconMetadataAndScheduledCounts;

@@ -39,7 +39,7 @@ public class DeletionService {
     public void deleteLexicon(String username, String lexiconId) {
         verifyCanEditLexicon(username, lexiconId);
 
-        scheduledReviewService.deleteAllLexiconReviewEvents(lexiconId, username);
+        reviewSessionService.deleteAllLexiconReviewEvents(lexiconId, username);
         wordReviewHistoryService.deleteLexiconWordReviewHistory(lexiconId);
         wordService.deleteLexiconWords(lexiconId, username);
         lexiconService.deleteLexiconMetadata(lexiconId, username);
@@ -48,7 +48,7 @@ public class DeletionService {
     public void deleteWords(String username, String lexiconId, Collection<String> wordIds) {
         verifyCanEditLexicon(username, lexiconId);
 
-        scheduledReviewService.deleteScheduledReviewsForWords(lexiconId, wordIds, username);
+        reviewSessionService.deleteScheduledReviewsForWords(lexiconId, wordIds, username);
         wordReviewHistoryService.deleteWordReviewHistories(lexiconId, wordIds);
         wordService.deleteWords(lexiconId, wordIds, username);
     }

@@ -22,15 +22,15 @@ public class ScheduledReviewService {
     private static final Logger log = LoggerFactory.getLogger(ScheduledReviewService.class);
 
     private final LexiconService lexiconService;
-    private final ReviewSessionDao reviewSessionDao;
+    private final ScheduledReviewDao scheduledReviewDao;
     private final double futureEventAllowedRatio;
 
     @Autowired
     public ScheduledReviewService(LexiconService lexiconService,
-                                  ReviewSessionDao reviewSessionDao,
+                                  ScheduledReviewDao scheduledReviewDao,
                                   @Value("${ssrs.review.futureEventAllowedRatio}") double futureEventAllowedRatio) {
         this.lexiconService = lexiconService;
-        this.reviewSessionDao = reviewSessionDao;
+        this.scheduledReviewDao = scheduledReviewDao;
 
         this.futureEventAllowedRatio = futureEventAllowedRatio;
     }
@@ -56,7 +56,7 @@ public class ScheduledReviewService {
 
         List<String> wordHistoryWordIds = lexiconWordHistories.stream().map(WordReviewHistory::wordId).toList();
         Map<String, List<DBScheduledReview>> existingScheduledReviews =
-                reviewSessionDao.loadScheduledReviewsForWords(lexiconId, username, wordHistoryWordIds)
+                scheduledReviewDao.loadScheduledReviewsForWords(lexiconId, username, wordHistoryWordIds)
                         .stream()
                         .collect(Collectors.groupingBy(DBScheduledReview::wordId));
 
@@ -70,13 +70,13 @@ public class ScheduledReviewService {
             reviewsToSave.add(buildScheduledReviewFromHistory(idToUse, username, wordHistory, nextTimeTime, nextTestRelationshipId));
         }
 
-        reviewSessionDao.createScheduledReviewsBatch(reviewsToSave, username);
+        scheduledReviewDao.createScheduledReviewsBatch(reviewsToSave, username);
 
         return reviewsToSave.size();
     }
 
     public Optional<ScheduledWordReview> loadEarliestScheduledReview(String lexiconId, String username, String wordId) {
-        Optional<DBScheduledReview> earliestScheduledReview = reviewSessionDao.loadScheduledReviewsForWords(username, lexiconId, List.of(wordId))
+        Optional<DBScheduledReview> earliestScheduledReview = scheduledReviewDao.loadScheduledReviewsForWords(username, lexiconId, List.of(wordId))
                 .stream()
                 .filter(scheduledReview -> scheduledReview.reviewType().equals(ReviewType.Review))
                 .min(Comparator.comparing(DBScheduledReview::scheduledTestTime));
@@ -101,19 +101,11 @@ public class ScheduledReviewService {
     public void adjustNextReviewTimes(String lexiconId, Duration adjustment, String username) {
         verifyUserAccessAllowed(lexiconId, username);
 
-        reviewSessionDao.adjustNextReviewTimes(lexiconId, adjustment);
+        scheduledReviewDao.adjustNextReviewTimes(lexiconId, adjustment);
     }
 
     public void deleteUserScheduledReviewForWords(String lexiconId, Collection<String> wordIds, String username) {
-        reviewSessionDao.deleteUserScheduledReviewForWords(lexiconId, wordIds, username);
-    }
-
-    public void deleteScheduledReviewsForWords(String lexiconId, Collection<String> wordIds, String username) {
-        reviewSessionDao.deleteWordReviewEvents(lexiconId, wordIds);
-    }
-
-    public void deleteAllLexiconReviewEvents(String lexiconId, String username) {
-        reviewSessionDao.deleteAllLexiconReviewEvents(lexiconId);
+        scheduledReviewDao.deleteUserScheduledReviewForWords(lexiconId, wordIds, username);
     }
 
     private String getReviewId(List<DBScheduledReview> scheduledReviews) {
@@ -134,7 +126,7 @@ public class ScheduledReviewService {
     public List<ScheduledWordReview> getCurrentScheduledReviewForLexicon(String lexiconId, String username, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
         Instant now = Instant.now();
 
-        List<DBScheduledReview> scheduledReviews = reviewSessionDao.loadScheduledReviews(username, lexiconId, reviewRelationship.orElse(""), cutoffInstant);
+        List<DBScheduledReview> scheduledReviews = scheduledReviewDao.loadScheduledReviews(username, lexiconId, reviewRelationship.orElse(""), cutoffInstant);
 
         if (cutoffInstant.isPresent() && cutoffInstant.get().isAfter(now)) {
             scheduledReviews = scheduledReviews.stream().filter(scheduledReview -> isFutureEventAllowed(scheduledReview, now)).toList();

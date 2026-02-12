@@ -3,6 +3,10 @@ package com.gt.ssrs.conf;
 import com.gt.ssrs.blob.BlobDao;
 import com.gt.ssrs.blob.impl.BlobDaoPG;
 import com.gt.ssrs.lexicon.LexiconDao;
+import com.gt.ssrs.reviewSession.ReviewEventDao;
+import com.gt.ssrs.reviewSession.ScheduledReviewDao;
+import com.gt.ssrs.reviewSession.impl.ReviewEventDaoPG;
+import com.gt.ssrs.reviewSession.impl.ScheduledReviewDaoPG;
 import com.gt.ssrs.word.WordDao;
 import com.gt.ssrs.lexicon.impl.LexiconDaoPG;
 import com.gt.ssrs.word.impl.WordDaoPG;
@@ -35,7 +39,6 @@ public class PGBeanConfig {
 
         return new NamedParameterJdbcTemplate(dataSource);
     }
-
 
     @Bean
     public Connection getBlobDatabaseConnection(@Value("${ssrs.datasource.postgres.url}") String url,
@@ -72,4 +75,13 @@ public class PGBeanConfig {
         return new WordReviewHistoryDaoPG(namedParameterJdbcTemplate);
     }
 
+    @Bean
+    public ReviewEventDao getReviewEventDao(NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
+        return new ReviewEventDaoPG(namedParameterJdbcTemplate);
+    }
+
+    @Bean
+    public ScheduledReviewDao getScheduledReviewDao(NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
+        return new ScheduledReviewDaoPG(namedParameterJdbcTemplate);
+    }
 }

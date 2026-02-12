@@ -60,7 +60,7 @@ public class LexiconService {
                 String imageFileName = updateImageBlobDataAsNeeded(newId, lexiconMetadata, newImageFile);
                 LexiconMetadata lexiconMetadataToSave = getLexiconMetadataToSave(newId, username, lexiconMetadata, imageFileName);
 
-                if (lexiconDao.createLexiconMetadata(newId, lexiconMetadataToSave) == 0) {
+                if (lexiconDao.createLexiconMetadata(lexiconMetadataToSave) == 0) {
                     log.warn("Unable to create row for new lexicon " + lexiconMetadata.title());
                     return null ;
                 }
@@ -72,7 +72,7 @@ public class LexiconService {
 
                 String imageFileName = updateImageBlobDataAsNeeded(lexiconMetadata.id(), lexiconMetadata, newImageFile);
                 LexiconMetadata lexiconMetadataToSave = getLexiconMetadataToSave(lexiconMetadata.id(), username, lexiconMetadata, imageFileName);
-                int rowsUpdated = imageFileName.isBlank() ? lexiconDao.updateLexiconMetadataNoImageUpdate(lexiconMetadataToSave) : lexiconDao.updateLexiconMetadata(lexiconMetadataToSave);
+                int rowsUpdated = lexiconDao.updateLexiconMetadata(lexiconMetadataToSave);
 
                 if (rowsUpdated == 0) {
                     log.warn("Unable to update lexicon metadata for lexicon " + lexiconMetadata.id());

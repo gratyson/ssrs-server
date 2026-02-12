@@ -69,6 +69,11 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
             "DELETE FROM lexicon_review_history WHERE lexicon_id = :lexiconId; " +
             "DELETE FROM lexicon_word_test_history WHERE lexicon_id = :lexiconId; ";
 
+    private static final String GET_TOTAL_LEARNED_WORDS_SQL =
+            "SELECT COUNT(*) " +
+            "FROM lexicon_review_history " +
+            "WHERE lexicon_id = :lexiconId AND username = :username AND learned IS TRUE";
+
     public WordReviewHistoryDaoPG(NamedParameterJdbcTemplate template) {
         this.template = template;
     }
@@ -193,6 +198,11 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
     public void deleteLexiconWordReviewHistory(String lexiconId) {
         template.update(DELETE_LEXICON_WORD_REVIEW_HISTORY_SQL,
                 Map.of("lexiconId", lexiconId));
+    }
+
+    @Override
+    public int getTotalLearnedWordCount(String lexiconId, String username) {
+        return template.queryForObject(GET_TOTAL_LEARNED_WORDS_SQL, Map.of("lexiconId", lexiconId, "username", username), Integer.class);
     }
 
     private List<WordReviewHistory> createOrUpdateWordReviewHistory(String username, List<WordReviewHistory> wordReviewHistories) {

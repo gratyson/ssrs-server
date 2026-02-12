@@ -26,7 +26,7 @@ public class ReviewSessionService {
     private static final int MAX_REVIEW_SIZE = 999;
     private static final int MAX_FALLBACK_ATTEMPTS = 3;
 
-    private final ReviewSessionDao reviewSessionDao;
+    private final ReviewEventDao reviewEventDao;
     private final LexiconService lexiconService;
     private final WordService wordService;
     private final ScheduledReviewService scheduledReviewService;
@@ -34,12 +34,12 @@ public class ReviewSessionService {
 
 
     @Autowired
-    public ReviewSessionService(ReviewSessionDao reviewSessionDao,
+    public ReviewSessionService(ReviewEventDao reviewEventDao,
                                 LexiconService lexiconService,
                                 WordService wordService,
                                 ScheduledReviewService scheduledReviewService,
                                 WordReviewHelper wordReviewHelper) {
-        this.reviewSessionDao = reviewSessionDao;
+        this.reviewEventDao = reviewEventDao;
         this.lexiconService = lexiconService;
         this.wordService = wordService;
         this.scheduledReviewService = scheduledReviewService;
@@ -47,7 +47,7 @@ public class ReviewSessionService {
     }
 
     public void saveReviewEvent(ReviewEvent event, String username, Instant eventInstant) {
-        reviewSessionDao.saveReviewEvent(DBReviewEvent.fromReviewEvent(event, username, eventInstant), event.scheduledEventId());
+        reviewEventDao.saveReviewEvent(DBReviewEvent.fromReviewEvent(event, username, eventInstant), event.scheduledEventId());
     }
 
     public void recordManualEvent(ReviewEvent event, String username) {
@@ -189,6 +189,14 @@ public class ReviewSessionService {
         }
 
         return toWordReview(language, lexiconId, scheduledReviewWords);
+    }
+
+    public void deleteScheduledReviewsForWords(String lexiconId, Collection<String> wordIds, String username) {
+        reviewEventDao.deleteWordReviewEvents(lexiconId, wordIds);
+    }
+
+    public void deleteAllLexiconReviewEvents(String lexiconId, String username) {
+        reviewEventDao.deleteAllLexiconReviewEvents(lexiconId);
     }
 
     private List<WordReview> toWordReview(Language language, String lexiconId, List<ScheduledWordReview> scheduledReviewWords) {

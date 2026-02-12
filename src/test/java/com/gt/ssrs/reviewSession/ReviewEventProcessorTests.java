@@ -689,7 +689,7 @@ public class ReviewEventProcessorTests {
         int learnedWords = 65;
 
         when(wordService.getTotalLexiconWordCount(LEXICON_ID)).thenReturn(totalWords);
-        when(reviewSessionDao.getTotalLearnedWordCount(LEXICON_ID, TEST_USERNAME)).thenReturn(learnedWords);
+        when(wordReviewHistoryService.getTotalLearnedWordCount(LEXICON_ID, TEST_USERNAME)).thenReturn(learnedWords);
 
         when(reviewSessionDao.loadScheduledReviews(TEST_USERNAME, LEXICON_ID, "", Optional.of(cutoff))).thenReturn(List.of(
                 buildDBScheduledReview(wordScheduledInPastId, now.minus(Duration.ofDays(1)), testDelay),

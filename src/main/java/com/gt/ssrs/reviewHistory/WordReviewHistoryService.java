@@ -3,6 +3,7 @@ package com.gt.ssrs.reviewHistory;
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordReviewHistory;
 import com.gt.ssrs.reviewSession.ScheduledReviewService;
+import io.jsonwebtoken.lang.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,11 +44,24 @@ public class WordReviewHistoryService {
 
 
     public List<WordReviewHistory> getWordReviewHistory(String lexiconId, String username, Collection<String> wordIds) {
+        if (Collections.isEmpty(wordIds)) {
+            return List.of();
+        }
+
         return wordReviewHistoryDao.getWordReviewHistoryBatch(lexiconId, username, wordIds);
     }
 
     public List<WordReviewHistory> updateWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistories) {
+        if (Collections.isEmpty(wordReviewHistories)) {
+            return List.of();
+        }
+
         return wordReviewHistoryDao.updateWordReviewHistoryBatch(username, wordReviewHistories);
+    }
+
+    public boolean hasWordsToLearn(String lexiconId, String username) {
+        List<String> wordToLearn = getIdsForWordsToLearn(lexiconId, username, 1);
+        return wordToLearn != null && wordToLearn.size() > 0;
     }
 
     public List<String> getIdsForWordsToLearn(String lexiconId, String username, int wordCnt) {
@@ -55,11 +69,15 @@ public class WordReviewHistoryService {
     }
 
     public void deleteUserWordReviewHistories(String lexiconId, String username, Collection<String> wordIds) {
-        wordReviewHistoryDao.deleteUserWordReviewHistories(lexiconId, username, wordIds);
+        if (!Collections.isEmpty(wordIds)) {
+            wordReviewHistoryDao.deleteUserWordReviewHistories(lexiconId, username, wordIds);
+        }
     }
 
     public void deleteWordReviewHistories(String lexiconId, Collection<String> wordIds) {
-        wordReviewHistoryDao.deleteWordReviewHistories(lexiconId, wordIds);
+        if (!Collections.isEmpty(wordIds)) {
+            wordReviewHistoryDao.deleteWordReviewHistories(lexiconId, wordIds);
+        }
     }
 
     public void deleteLexiconWordReviewHistoryForUser(String lexiconId, String username) {
@@ -68,6 +86,10 @@ public class WordReviewHistoryService {
 
     public void deleteLexiconWordReviewHistory(String lexiconId) {
         wordReviewHistoryDao.deleteLexiconWordReviewHistory(lexiconId);
+    }
+
+    public int getTotalLearnedWordCount(String lexiconId, String username) {
+        return wordReviewHistoryDao.getTotalLearnedWordCount(lexiconId, username);
     }
 
     private WordReviewHistory createEmptyWordReviewHistory(String lexiconId, String username, String wordId) {

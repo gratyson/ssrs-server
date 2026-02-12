@@ -1,6 +1,7 @@
 package com.gt.ssrs.task;
 
-import com.gt.ssrs.reviewSession.ReviewSessionDao;
+import com.gt.ssrs.reviewSession.ReviewEventDao;
+import com.gt.ssrs.reviewSession.ScheduledReviewDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,13 +16,16 @@ public class DatabaseMaintenanceTask {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseMaintenanceTask.class);
 
-    private final ReviewSessionDao reviewSessionDao;
+    private final ReviewEventDao reviewEventDao;
+    private final ScheduledReviewDao scheduledReviewDao;
     private final int purgeEventsAfterDays;
 
 
-    public DatabaseMaintenanceTask(ReviewSessionDao reviewSessionDao,
+    public DatabaseMaintenanceTask(ReviewEventDao reviewEventDao,
+                                   ScheduledReviewDao scheduledReviewDao,
                                    @Value("${ssrs.maintenance.purgeAfterDays:7}") int purgeEventsAfterDays) {
-        this.reviewSessionDao = reviewSessionDao;
+        this.reviewEventDao = reviewEventDao;
+        this.scheduledReviewDao = scheduledReviewDao;
 
         this.purgeEventsAfterDays = purgeEventsAfterDays;
     }
@@ -37,7 +41,7 @@ public class DatabaseMaintenanceTask {
         // scheduled reviews are kept 1 day longer to avoid foreign key restraint issues
         Instant cutoff = Instant.now().minus(purgeEventsAfterDays + 1, ChronoUnit.DAYS);
 
-        int rowsDeleted = reviewSessionDao.purgeOldScheduledReviews(cutoff);
+        int rowsDeleted = scheduledReviewDao.purgeOldScheduledReviews(cutoff);
 
         log.info("Purged old scheduled reviews. {} row deleted.", rowsDeleted);
     }
@@ -45,7 +49,7 @@ public class DatabaseMaintenanceTask {
     private void purgeOldReviewEvents() {
         Instant cutoff = Instant.now().minus(purgeEventsAfterDays, ChronoUnit.DAYS);
 
-        int rowsDeleted = reviewSessionDao.purgeOldReviewEvents(cutoff);
+        int rowsDeleted = reviewEventDao.purgeOldReviewEvents(cutoff);
 
         log.info("Purged old review events. {} row deleted.", rowsDeleted);
     }

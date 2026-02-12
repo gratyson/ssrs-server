@@ -87,19 +87,9 @@ public class LexiconDaoPG implements LexiconDao {
     }
 
     @Override
-    public int updateLexiconMetadataNoImageUpdate(LexiconMetadata lexicon) {
-        return template.update(UPDATE_LEXICON_METADATA_NO_IMAGE_UPDATE_SQL, Map.of(
-                "id", lexicon.id(),
-                "owner", lexicon.owner(),
-                "title", lexicon.title(),
-                "description", lexicon.description(),
-                "lang", lexicon.languageId()));
-    }
-
-    @Override
-    public int createLexiconMetadata(String newId, LexiconMetadata lexicon) {
+    public int createLexiconMetadata(LexiconMetadata lexicon) {
         return template.update(CREATE_LEXICON_METADATA_SQL, Map.of(
-                "id", newId,
+                "id", lexicon.id(),
                 "owner", lexicon.owner(),
                 "title", lexicon.title(),
                 "description", lexicon.description(),

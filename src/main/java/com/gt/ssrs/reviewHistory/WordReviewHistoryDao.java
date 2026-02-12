@@ -22,4 +22,6 @@ public interface WordReviewHistoryDao {
     void deleteLexiconWordReviewHistoryForUser(String lexiconId, String username);
 
     void deleteLexiconWordReviewHistory(String lexiconId);
+
+    int getTotalLearnedWordCount(String lexiconId, String username);
 }

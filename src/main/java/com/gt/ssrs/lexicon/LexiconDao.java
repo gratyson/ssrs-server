@@ -20,9 +20,7 @@ public interface LexiconDao {
 
     int updateLexiconMetadata(LexiconMetadata lexicon);
 
-    int updateLexiconMetadataNoImageUpdate(LexiconMetadata lexicon);
-
-    int createLexiconMetadata(String newId, LexiconMetadata lexicon);
+    int createLexiconMetadata(LexiconMetadata lexicon);
 
     void deleteLexiconMetadata(String lexiconId);
 }
