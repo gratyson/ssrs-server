@@ -1,22 +1,27 @@
 package com.gt.ssrs.blob;
 
+import com.gt.ssrs.blob.model.BlobPath;
+
 import java.nio.ByteBuffer;
 import java.util.List;
 
 public interface BlobDao {
 
-    public void saveImageFile(String name, ByteBuffer bytes);
+    void saveImageFile(String name, ByteBuffer bytes);
 
-    public ByteBuffer loadImageFile(String name);
+    ByteBuffer loadImageFile(String name);
 
-    public void deleteImageFile(String name);
+    BlobPath getImageFilePath(String name);
 
+    void deleteImageFile(String name);
 
-    public int saveAudioFile(String name, ByteBuffer bytes);
+    int saveAudioFile(String name, ByteBuffer bytes);
 
-    public ByteBuffer loadAudioFile(String name);
+    ByteBuffer loadAudioFile(String name);
 
-    public void deleteAudioFile(String name);
+    BlobPath getAudioFilePath(String name);
 
-    public void deleteAudioFiles(List<String> names);
+    void deleteAudioFile(String name);
+
+    void deleteAudioFiles(List<String> names);
 }

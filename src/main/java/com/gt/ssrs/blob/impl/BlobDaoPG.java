@@ -1,6 +1,8 @@
 package com.gt.ssrs.blob.impl;
 
+import com.gt.ssrs.blob.BlobController;
 import com.gt.ssrs.blob.BlobDao;
+import com.gt.ssrs.blob.model.BlobPath;
 import com.gt.ssrs.exception.DaoException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,11 +11,16 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 public class BlobDaoPG implements BlobDao {
 
+    private static final Duration BLOB_PATH_DURATION = Duration.ofDays(365);
     private static final int DELETE_BATCH_SIZE = 100;
+    private static final String IMAGE_PATH_PREFIX = "blob/image/";
+    private static final String AUDIO_PATH_PREFIX = "audio/audio?audioFileName=";
 
     private static final Logger log = LoggerFactory.getLogger(BlobDaoPG.class);
 
@@ -80,10 +87,10 @@ public class BlobDaoPG implements BlobDao {
             ps.setString(1, name);
             ps.setBlob(2, new ByteArrayInputStream(bytes.array()), bytes.array().length);
 
-            int result = ps.executeUpdate();
+            ps.executeUpdate();
             databaseConnection.commit();
             databaseConnection.endRequest();
-            return result;
+            return 1;
 
         } catch (SQLException ex) {
             String errMsg = "Error attempting to save file " + name + " to blob server. ";
@@ -105,8 +112,18 @@ public class BlobDaoPG implements BlobDao {
     }
 
     @Override
+    public BlobPath getImageFilePath(String name) {
+        return new BlobPath(IMAGE_PATH_PREFIX + name, true, Instant.now().plus(BLOB_PATH_DURATION));
+    }
+
+    @Override
     public ByteBuffer loadAudioFile(String name) {
         return loadBlobFile(LOAD_AUDIO_SQL, name);
+    }
+
+    @Override
+    public BlobPath getAudioFilePath(String name) {
+        return new BlobPath(AUDIO_PATH_PREFIX + name, true, Instant.now().plus(BLOB_PATH_DURATION));
     }
 
     private ByteBuffer loadBlobFile(String loadSql, String name) {

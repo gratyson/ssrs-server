@@ -1,5 +1,6 @@
 package com.gt.ssrs.blob;
 
+import com.gt.ssrs.blob.model.BlobPath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,8 @@ public class BlobController {
 
     private static final Logger log = LoggerFactory.getLogger(BlobController.class);
 
+    private static final int CACHE_DURATION_SECONDS = 365 * 24 * 60 * 60;
+
     private final BlobService blobService;
 
     @Autowired
@@ -26,23 +29,24 @@ public class BlobController {
     }
 
     @PostMapping("/saveImage")
-    public void SaveImageFile(@RequestParam("fileName") String fileName, @RequestParam("file") MultipartFile file) throws IOException {
-        blobService.SaveImageFile(fileName, ByteBuffer.wrap(file.getBytes()));
+    public void saveImageFile(@RequestParam("fileName") String fileName, @RequestParam("file") MultipartFile file) throws IOException {
+        blobService.saveImageFile(fileName, ByteBuffer.wrap(file.getBytes()));
     }
 
     @GetMapping(value = "/image/{fileName}", produces = "image/*")
-    public byte[] LoadImageFile(@PathVariable String fileName) {
-        return blobService.LoadImageFileOrDefaultImage(fileName).array();
-    }
-
-    @GetMapping(value = "/audio/{fileName}", produces = "audio/mp3")
-    public ResponseEntity LoadAudioFile(@PathVariable String fileName) {
+    public ResponseEntity loadImageFile(@PathVariable String fileName) {
         HttpHeaders headers = new HttpHeaders();
-        headers.add("Content-Type", "audio/" + fileName.substring(fileName.lastIndexOf(".") + 1));
+        headers.add(HttpHeaders.CONTENT_TYPE, "image/" + fileName.substring(fileName.lastIndexOf(".") + 1));
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "public, max-age=" + CACHE_DURATION_SECONDS);
 
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .headers(headers)
-                .body(blobService.LoadAudioFile(fileName).array());
+                .body(blobService.loadImageFileOrDefaultImage(fileName).array());
+    }
+
+    @GetMapping(value = "/image/getPath/{fileName}")
+    public BlobPath getImageFilePath(@PathVariable String fileName) {
+        return blobService.getImageFilePath(fileName);
     }
 }

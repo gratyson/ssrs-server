@@ -6,6 +6,7 @@ import com.gt.ssrs.exception.MappingException;
 import com.gt.ssrs.exception.UserAccessException;
 import com.gt.ssrs.model.*;
 import com.gt.ssrs.util.FileNameUtil;
+import com.gt.ssrs.util.ShortUUIDUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,8 +87,6 @@ public class LexiconService {
             log.error(errorMsg);
             throw new DaoException(errorMsg, ex);
         }
-
-
     }
 
     private static LexiconMetadata getLexiconMetadataToSave(String newId, String username, LexiconMetadata uploadedLexiconMetadata, String newImageFileName) {
@@ -121,7 +120,7 @@ public class LexiconService {
     }
 
     private static String getImageFileName(String lexiconId, String uploadFileName) {
-        return lexiconId + FileNameUtil.GetExtension(uploadFileName);
+        return lexiconId + "_" + ShortUUIDUtil.newStubUUID() + FileNameUtil.getExtension(uploadFileName);
     }
 
 

@@ -1,5 +1,6 @@
 package com.gt.ssrs.blob;
 
+import com.gt.ssrs.blob.model.BlobPath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,20 +21,15 @@ public class BlobService {
         this.blobDao = blobDao;
     }
 
-    public void SaveImageFile(String name, ByteBuffer bytes) {
+    public void saveImageFile(String name, ByteBuffer bytes) {
         blobDao.saveImageFile(name, bytes);
     }
 
-    public ByteBuffer LoadImageFileOrDefaultImage(String name) {
+    public ByteBuffer loadImageFileOrDefaultImage(String name) {
         return blobDao.loadImageFile(name);
     }
 
-    public void SaveAudioFile(String name, ByteBuffer bytes) {
-        blobDao.saveAudioFile(name, bytes);
+    public BlobPath getImageFilePath(String name) {
+        return blobDao.getImageFilePath(name);
     }
-
-    public ByteBuffer LoadAudioFile(String name) {
-        return blobDao.loadAudioFile(name);
-    }
-
 }

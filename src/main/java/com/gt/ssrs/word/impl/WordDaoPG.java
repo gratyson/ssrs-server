@@ -69,8 +69,8 @@ public class WordDaoPG implements WordDao {
 
     private static final String WORDS_BATCH_QUERY_WITH_FILTER_SELECT_SQL_SELECT =
             "SELECT word.id, word.lexicon_id, word.owner, word.attributes, " + AVAILABLE_ELEMENTS.stream().map(e -> "word." + e).collect(Collectors.joining(", ")) + ", word.create_seq_num " +
-                    "FROM words word " +
-                    "LEFT JOIN lexicon_review_history history ON word.lexicon_id = history.lexicon_id AND word.id = history.word_id and history.username = :username ";
+            "FROM words word " +
+            "LEFT JOIN lexicon_review_history history ON word.lexicon_id = history.lexicon_id AND word.id = history.word_id and history.username = :username ";
     private static final String WORDS_BATCH_QUERY_WITH_FILTER_SELECT_SQL_AUDIO_JOIN =
             "LEFT JOIN LATERAL (SELECT audio_file_name FROM word_audio a WHERE a.word_id = word.id LIMIT 1) audio ON TRUE ";
     private static final String WORDS_BATCH_QUERY_WITH_FILTER_SELECT_SQL_WHERE =
@@ -90,8 +90,8 @@ public class WordDaoPG implements WordDao {
 
     private static final String GET_WORDS_UNIQUE_TO_LEXICON_SQL =
             "SELECT id " +
-                    "FROM words " +
-                    "WHERE lexicon_id = :lexiconId";
+            "FROM words " +
+            "WHERE lexicon_id = :lexiconId";
 
     private static final String GET_TOTAL_LEXICON_WORDS_SQL =
             "SELECT COUNT(*) FROM words WHERE lexicon_id = :lexiconId";
@@ -108,9 +108,9 @@ public class WordDaoPG implements WordDao {
     private static final String WORD_ELEMENT_TOKEN = "$wordElement$";
     private static final String GET_UNIQUE_VALUES_OF_ELEMENT_IN_LEXICON =
             "SELECT distinct(" + WORD_ELEMENT_TOKEN + ") " +
-                    "FROM words " +
-                    "WHERE lexicon_id = :lexiconId AND " + WORD_ELEMENT_TOKEN + " IS NOT NULL AND " + WORD_ELEMENT_TOKEN + " != '' " +
-                    "LIMIT :limit";
+            "FROM words " +
+            "WHERE lexicon_id = :lexiconId AND " + WORD_ELEMENT_TOKEN + " IS NOT NULL AND " + WORD_ELEMENT_TOKEN + " != '' " +
+            "LIMIT :limit";
 
     private static final String DELETE_WORDS_SQL =
             "DELETE FROM word_audio WHERE word_id IN (:wordIds); " +

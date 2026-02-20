@@ -245,7 +245,7 @@ public class WordService {
     }
 
     private void deleteLexiconAudio(String lexiconId) {
-        List<String> audioFileNames = audioService.GetAudioFilesForWordBatch(wordDao.getWordsUniqueToLexicon(lexiconId))
+        List<String> audioFileNames = audioService.getAudioFilesForWordBatch(wordDao.getWordsUniqueToLexicon(lexiconId))
                 .values()
                 .stream()
                 .flatMap(List::stream)

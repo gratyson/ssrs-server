@@ -1,6 +1,8 @@
 package com.gt.ssrs.audio;
 
 import com.gt.ssrs.blob.BlobDao;
+import com.gt.ssrs.blob.model.BlobPath;
+import com.gt.ssrs.util.ShortUUIDUtil;
 import com.gt.ssrs.word.WordDao;
 import com.gt.ssrs.exception.DaoException;
 import com.gt.ssrs.util.FileNameUtil;
@@ -28,29 +30,33 @@ public class AudioService {
         this.wordDao = wordDao;
     }
 
-    // Word ID is unused for now. Included now to avoid a full stack update if needed later
-    public ByteBuffer GetAudio(String wordId, String audioFileName) {
+    public ByteBuffer getAudio(String audioFileName) {
         return blobDao.loadAudioFile(audioFileName);
     }
 
-    public List<String> GetAudioFilesForWord(String wordId) {
+    public BlobPath getAudioPath(String audioFileName) {
+        return blobDao.getAudioFilePath(audioFileName);
+    }
+
+    public List<String> getAudioFilesForWord(String wordId) {
         return wordDao.getAudioFileNamesForWord(wordId);
     }
 
-    public Map<String,List<String>> GetAudioFilesForWordBatch(List<String> wordIds) {
+    public Map<String,List<String>> getAudioFilesForWordBatch(List<String> wordIds) {
         if (wordIds != null && wordIds.size() > 0) {
             return wordDao.getAudioFileNamesForWordBatch(wordIds);
         }
 
         return new HashMap<>();
+
     }
 
-    public Map<String, List<String>> SaveAudioMultiple(List<String> wordIds, List<MultipartFile> files) {
+    public Map<String, List<String>> saveAudioMultiple(List<String> wordIds, List<MultipartFile> files) {
         Map<String, List<String>> savedFiles = new HashMap<>();
 
         for (int i =0; i < wordIds.size(); i++) {  // equal lengths already verified by controller
             String wordId = wordIds.get(i);
-            String newFileName = SaveAudio(wordId, files.get(i));
+            String newFileName = saveAudio(wordId, files.get(i));
             if (newFileName != null && !newFileName.isBlank()) {
                 if (!savedFiles.containsKey(wordId)) {
                     savedFiles.put(wordId, new ArrayList<>(List.of(newFileName)));
@@ -63,15 +69,18 @@ public class AudioService {
         return savedFiles;
     }
 
-    public String SaveAudio(String wordId, MultipartFile newAudioFile) {
-        Set<String> currentFileNamesWithExtension = GetCurrentFileNamesWithoutExtension(wordId);
-        String newFileName = GetNewFileName(wordId, newAudioFile.getOriginalFilename(), currentFileNamesWithExtension);
+    public String saveAudio(String wordId, MultipartFile newAudioFile) {
+        Set<String> currentFileNamesWithoutExtension = getCurrentFileNamesWithoutExtension(wordId);
+        String newFileName = getNewFileName(wordId, newAudioFile.getOriginalFilename(), currentFileNamesWithoutExtension);
 
         try {
             log.info("Saving new audio file {} for word {}", newFileName, wordId);
-            blobDao.saveAudioFile(newFileName, ByteBuffer.wrap(newAudioFile.getBytes()));
-            if (wordDao.setAudioFileNameForWord(wordId, newFileName) > 0) {
-                return newFileName;
+            if (blobDao.saveAudioFile(newFileName, ByteBuffer.wrap(newAudioFile.getBytes())) > 0) {
+                if (wordDao.setAudioFileNameForWord(wordId, newFileName) > 0) {
+                    return newFileName;
+                } else {
+                    blobDao.deleteAudioFile(newFileName);
+                }
             }
 
         } catch (Exception ex) {
@@ -84,7 +93,7 @@ public class AudioService {
         return "";
     }
 
-    public boolean DeleteAudio(String wordId, String audioFileName) {
+    public boolean deleteAudio(String wordId, String audioFileName) {
         try {
             blobDao.deleteAudioFile(audioFileName);
             if (wordDao.deleteAudioFileName(wordId, audioFileName) > 0) {
@@ -100,20 +109,20 @@ public class AudioService {
         return false;
     }
 
-    private static String GetNewFileName(String wordId, String existingFileName, Set<String> currentFileNamesWithExtension) {
+    private static String getNewFileName(String wordId, String existingFileName, Set<String> currentFileNamesWithoutExtension) {
         String prefix = wordId + "_";
-        int offset = 1;
-        while (currentFileNamesWithExtension.contains(prefix + offset)) {
-            offset++;
+        String audioId = prefix + ShortUUIDUtil.newStubUUID();
+        while (currentFileNamesWithoutExtension.contains(audioId)) {
+            audioId = prefix + ShortUUIDUtil.newStubUUID();
         }
-        return prefix + offset + FileNameUtil.GetExtension(existingFileName);
+        return audioId + FileNameUtil.getExtension(existingFileName);
     }
 
 
-    private Set<String> GetCurrentFileNamesWithoutExtension(String wordId) {
+    private Set<String> getCurrentFileNamesWithoutExtension(String wordId) {
         return wordDao.getAudioFileNamesForWord(wordId)
                 .stream()
-                .map(fileName -> FileNameUtil.RemoveExtension(fileName))
+                .map(fileName -> FileNameUtil.removeExtension(fileName))
                 .collect(Collectors.toSet());
     }
 }

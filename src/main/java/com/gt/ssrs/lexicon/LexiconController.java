@@ -99,7 +99,7 @@ public class LexiconController {
         deletionService.deleteLexicon(userDetails.getUsername(), lexiconId);
     }
 
-    @GetMapping(value = "/com/gt/ssrs/word", produces = "application/json")
+    @GetMapping(value = "/word", produces = "application/json")
     public Word getWord(@RequestParam(value = "id") String wordId) {
         return wordService.loadWord(wordId);
     }
