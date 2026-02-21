@@ -1,6 +1,6 @@
 package com.gt.ssrs.reviewSession;
 
-import com.gt.ssrs.reviewSession.model.DBReviewEvent;
+import com.gt.ssrs.model.ReviewEvent;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -8,15 +8,19 @@ import java.util.List;
 
 public interface ReviewEventDao {
 
-    boolean saveReviewEvent(DBReviewEvent event, String scheduledReviewId);
+    boolean saveReviewEvent(ReviewEvent event);
 
-    List<DBReviewEvent> loadUnprocessedReviewEventsForUserBatch(String username, String lexiconId, int lastId, int batchSize);
+    List<ReviewEvent> loadUnprocessedReviewEventsForUser(String username, String lexiconId);
 
-    public void markEventsAsProcessed(List<DBReviewEvent> events);
+    List<String> markEventsAsProcessed(List<ReviewEvent> events);
 
-    public void deleteWordReviewEvents(String lexiconId, Collection<String> wordIds);
+    void deleteWordReviewEvents(String lexiconId, Collection<String> wordIds);
 
-    public void deleteAllLexiconReviewEvents(String lexiconId);
+    void deleteWordReviewEventsForUser(String lexiconId, String username, Collection<String> wordIds);
+
+    void deleteAllLexiconReviewEvents(String lexiconId);
+
+    void deleteAllLexiconReviewEventsForUser(String lexiconId, String username);
 
     int purgeOldReviewEvents(Instant cutoff);
 }

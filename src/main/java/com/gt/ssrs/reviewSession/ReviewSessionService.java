@@ -5,14 +5,16 @@ import com.gt.ssrs.language.LearningTestOptions;
 import com.gt.ssrs.language.TestRelationship;
 import com.gt.ssrs.language.WordElement;
 import com.gt.ssrs.lexicon.LexiconService;
+import com.gt.ssrs.reviewSession.model.ClientReviewEvent;
 import com.gt.ssrs.word.WordService;
 import com.gt.ssrs.word.model.TestOnWordPair;
-import com.gt.ssrs.reviewSession.model.DBReviewEvent;
+import com.gt.ssrs.model.ReviewEvent;
 import com.gt.ssrs.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.*;
@@ -27,6 +29,7 @@ public class ReviewSessionService {
     private static final int MAX_FALLBACK_ATTEMPTS = 3;
 
     private final ReviewEventDao reviewEventDao;
+    private final ScheduledReviewDao scheduledReviewDao;
     private final LexiconService lexiconService;
     private final WordService wordService;
     private final ScheduledReviewService scheduledReviewService;
@@ -35,36 +38,43 @@ public class ReviewSessionService {
 
     @Autowired
     public ReviewSessionService(ReviewEventDao reviewEventDao,
+                                ScheduledReviewDao scheduledReviewDao,
                                 LexiconService lexiconService,
                                 WordService wordService,
                                 ScheduledReviewService scheduledReviewService,
                                 WordReviewHelper wordReviewHelper) {
         this.reviewEventDao = reviewEventDao;
+        this.scheduledReviewDao = scheduledReviewDao;
         this.lexiconService = lexiconService;
         this.wordService = wordService;
         this.scheduledReviewService = scheduledReviewService;
         this.wordReviewHelper = wordReviewHelper;
     }
 
-    public void saveReviewEvent(ReviewEvent event, String username, Instant eventInstant) {
-        reviewEventDao.saveReviewEvent(DBReviewEvent.fromReviewEvent(event, username, eventInstant), event.scheduledEventId());
+    public void saveReviewEvent(ClientReviewEvent event, String username, Instant eventInstant) {
+        ReviewEvent reviewEvent = ReviewEvent.fromClientReviewEvent(event, username, eventInstant);
+
+        reviewEventDao.saveReviewEvent(reviewEvent);
+        if (StringUtils.hasLength(reviewEvent.scheduledReviewId())) {
+            scheduledReviewDao.markScheduledReviewComplete(reviewEvent.scheduledReviewId());
+        }
     }
 
-    public void recordManualEvent(ReviewEvent event, String username) {
-        Optional<ScheduledWordReview> nextScheduledReview = scheduledReviewService.loadEarliestScheduledReview(event.lexiconId(), username, event.wordId());
+    public void recordManualEvent(ClientReviewEvent event, String username) {
+        Optional<ScheduledReview> nextScheduledReview = scheduledReviewService.loadEarliestScheduledReview(event.lexiconId(), username, event.wordId());
         if (nextScheduledReview.isEmpty()) {
             log.warn("Manual event requested for word " + event.wordId() + ". However, no scheduled events exist for word.");
             return;
         }
 
-        TestRelationship scheduledTestRelationship = getTestRelationFromId(event.lexiconId(), nextScheduledReview.get().reviewRelationShip());
+        TestRelationship scheduledTestRelationship = getTestRelationFromId(event.lexiconId(), nextScheduledReview.get().testRelationshipId());
         if (scheduledTestRelationship == null) {
-            log.warn("Unknown relation scheduled for test " + nextScheduledReview.get().reviewId());
+            log.warn("Unknown relation scheduled for test " + nextScheduledReview.get().id());
             return;
         }
 
-        ReviewEvent reviewEventToSave = new ReviewEvent(
-                nextScheduledReview.get().reviewId(),
+        ClientReviewEvent reviewEventToSave = new ClientReviewEvent(
+                nextScheduledReview.get().id(),
                 event.lexiconId(),
                 event.wordId(),
                 event.reviewType(),
@@ -178,7 +188,7 @@ public class ReviewSessionService {
             maxWordCnt = MAX_REVIEW_SIZE;
         }
 
-        List<ScheduledWordReview> scheduledReviewWords = scheduledReviewService.getCurrentScheduledReviewForLexicon(lexiconId, username, reviewRelationShip, cutoffInstant);
+        List<ScheduledReview> scheduledReviewWords = scheduledReviewService.getCurrentScheduledReviewForLexicon(lexiconId, username, reviewRelationShip, cutoffInstant);
 
         if (scheduledReviewWords == null || scheduledReviewWords.size() == 0) {
             return List.of();
@@ -191,33 +201,41 @@ public class ReviewSessionService {
         return toWordReview(language, lexiconId, scheduledReviewWords);
     }
 
-    public void deleteScheduledReviewsForWords(String lexiconId, Collection<String> wordIds, String username) {
+    public void deleteWordReviewEvents(String lexiconId, Collection<String> wordIds) {
         reviewEventDao.deleteWordReviewEvents(lexiconId, wordIds);
     }
 
-    public void deleteAllLexiconReviewEvents(String lexiconId, String username) {
+    public void deleteWordReviewEventsForUser(String lexiconId, String username, Collection<String> wordIds) {
+        reviewEventDao.deleteWordReviewEventsForUser(lexiconId, username, wordIds);
+    }
+
+    public void deleteAllLexiconReviewEvents(String lexiconId) {
         reviewEventDao.deleteAllLexiconReviewEvents(lexiconId);
     }
 
-    private List<WordReview> toWordReview(Language language, String lexiconId, List<ScheduledWordReview> scheduledReviewWords) {
+    public void deleteAllLexiconReviewEventsForUser(String lexiconId, String username) {
+        reviewEventDao.deleteAllLexiconReviewEventsForUser(lexiconId, username);
+    }
+
+    private List<WordReview> toWordReview(Language language, String lexiconId, List<ScheduledReview> scheduledReviewWords) {
         List<String> scheduledWordIds = scheduledReviewWords.stream().map(scheduledWordReview -> scheduledWordReview.wordId()).toList();
         Map<String, Word> scheduledWordMap = wordService.loadWords(scheduledWordIds).stream().collect(Collectors.toMap(word -> word.id(), word -> word));
 
         Map<String, TestRelationship> testRelationshipByReviewId = scheduledReviewWords
                 .stream()
-                .collect(Collectors.toMap(scheduledWordReview -> scheduledWordReview.reviewId(),
-                                          scheduledWordReview -> getReviewRelationship(scheduledWordMap.get(scheduledWordReview.wordId()), TestRelationship.getTestRelationshipById(scheduledWordReview.reviewRelationShip()))));
+                .collect(Collectors.toMap(scheduledWordReview -> scheduledWordReview.id(),
+                                          scheduledWordReview -> getReviewRelationship(scheduledWordMap.get(scheduledWordReview.wordId()), TestRelationship.getTestRelationshipById(scheduledWordReview.testRelationshipId()))));
 
         List<TestOnWordPair> testOnWordPairs = scheduledReviewWords
                 .stream()
-                .map(scheduledWordReview -> new TestOnWordPair(testRelationshipByReviewId.get(scheduledWordReview.reviewId()).getTestOn(), scheduledWordMap.get(scheduledWordReview.wordId())))
+                .map(scheduledWordReview -> new TestOnWordPair(testRelationshipByReviewId.get(scheduledWordReview.id()).getTestOn(), scheduledWordMap.get(scheduledWordReview.wordId())))
                 .collect(Collectors.toUnmodifiableList());
 
         Map<WordElement, Map<Word, List<String>>> similarWordsByWordIdByTestOn = wordReviewHelper.findSimilarWordElementValues(lexiconId, testOnWordPairs);
 
         List<WordReview> wordReviews = new ArrayList<>();
-        for(ScheduledWordReview scheduledWordReview : scheduledReviewWords){
-            TestRelationship testRelationship = testRelationshipByReviewId.get(scheduledWordReview.reviewId());
+        for(ScheduledReview scheduledWordReview : scheduledReviewWords){
+            TestRelationship testRelationship = testRelationshipByReviewId.get(scheduledWordReview.id());
 
             wordReviews.add(buildWordReview(
                     language,
@@ -232,11 +250,11 @@ public class ReviewSessionService {
         return wordReviews;
     }
 
-    private WordReview buildWordReview(Language language, TestRelationship reviewRelationship, ScheduledWordReview scheduledReview, Word word, List<String> similarWords) {
+    private WordReview buildWordReview(Language language, TestRelationship reviewRelationship, ScheduledReview scheduledReview, Word word, List<String> similarWords) {
         return new WordReview(
                 language.getId(),
                 word,
-                scheduledReview.reviewId(),
+                scheduledReview.id(),
                 reviewRelationship,
                 ReviewMode.TypingTest,
                 scheduledReview.reviewType(),

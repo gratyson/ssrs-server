@@ -3,6 +3,7 @@ package com.gt.ssrs.reviewHistory.impl;
 import com.gt.ssrs.model.TestHistory;
 import com.gt.ssrs.model.WordReviewHistory;
 import com.gt.ssrs.reviewHistory.WordReviewHistoryDao;
+import com.gt.ssrs.reviewHistory.model.LearnedStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -13,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
 
@@ -74,17 +76,22 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
             "FROM lexicon_review_history " +
             "WHERE lexicon_id = :lexiconId AND username = :username AND learned IS TRUE";
 
+    private static final String GET_WORD_IDS_FOR_USER_BY_LEARNED_SQL =
+            "SELECT learned, word_id " +
+            "FROM lexicon_review_history " +
+            "WHERE lexicon_id = :lexiconId AND username = :username ";
+
     public WordReviewHistoryDaoPG(NamedParameterJdbcTemplate template) {
         this.template = template;
     }
 
     @Override
-    public List<WordReviewHistory> createWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistories) {
+    public List<WordReviewHistory> createWordReviewHistory(String username, List<WordReviewHistory> wordReviewHistories) {
         return createOrUpdateWordReviewHistory(username, wordReviewHistories);
     }
 
     @Override
-    public List<WordReviewHistory> getWordReviewHistoryBatch(String lexiconId, String username, Collection<String> wordIds) {
+    public List<WordReviewHistory> getWordReviewHistory(String lexiconId, String username, Collection<String> wordIds) {
         if (wordIds == null || wordIds.isEmpty()) {
             return List.of();
         }
@@ -99,7 +106,7 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
             Duration currentTestDelay = null;
             double currentBoost = 0;
             Duration currentBoostExpirationDelay = null;
-            Map<String, TestHistory> testHistory = Map.of();
+            Map<String, TestHistory> testHistory = new HashMap<>();
 
             while (rs.next()) {
                 String wordId = rs.getString("word_id");
@@ -158,8 +165,13 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
     }
 
     @Override
-    public List<WordReviewHistory> updateWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistories) {
+    public List<WordReviewHistory> updateWordReviewHistory(String username, List<WordReviewHistory> wordReviewHistories) {
         return createOrUpdateWordReviewHistory(username, wordReviewHistories);
+    }
+
+    @Override
+    public List<WordReviewHistory> getAllWordReviewHistory(String lexiconId, String username) {
+        return List.of();
     }
 
     @Override
@@ -203,6 +215,18 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
     @Override
     public int getTotalLearnedWordCount(String lexiconId, String username) {
         return template.queryForObject(GET_TOTAL_LEARNED_WORDS_SQL, Map.of("lexiconId", lexiconId, "username", username), Integer.class);
+    }
+
+    @Override
+    public Map<LearnedStatus, List<String>> getWordIdsForUserByLearned(String lexiconId, String username) {
+        List<WordIdAndLearnedStatus> wordIdAndLearnedStatusList = template.query(GET_WORD_IDS_FOR_USER_BY_LEARNED_SQL,
+                Map.of("lexiconId", lexiconId,
+                        "username", username),
+                (rs, rowNum) -> new WordIdAndLearnedStatus(rs.getString("word_id"), rs.getBoolean("learned")));
+
+        return wordIdAndLearnedStatusList.stream().collect(Collectors.groupingBy(
+                v -> v.learned() ? LearnedStatus.Learned : LearnedStatus.ReadyToLearn,
+                Collectors.mapping(WordIdAndLearnedStatus::wordId, Collectors.toList())));
     }
 
     private List<WordReviewHistory> createOrUpdateWordReviewHistory(String username, List<WordReviewHistory> wordReviewHistories) {
@@ -257,4 +281,6 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
     private static Instant toInstant(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
     }
+
+    private record WordIdAndLearnedStatus(String wordId, boolean learned) { }
 }

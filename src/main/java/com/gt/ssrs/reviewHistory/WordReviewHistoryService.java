@@ -2,7 +2,7 @@ package com.gt.ssrs.reviewHistory;
 
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordReviewHistory;
-import com.gt.ssrs.reviewSession.ScheduledReviewService;
+import com.gt.ssrs.reviewHistory.model.LearnedStatus;
 import io.jsonwebtoken.lang.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -30,16 +31,16 @@ public class WordReviewHistoryService {
                 .map(word -> createEmptyWordReviewHistory(word.lexiconId(), username, word.id()))
                 .collect(Collectors.toUnmodifiableList());
 
-        wordReviewHistoryDao.createWordReviewHistoryBatch(username, wordReviewHistoryToSave);
+        wordReviewHistoryDao.createWordReviewHistory(username, wordReviewHistoryToSave);
     }
 
     public void resetLearningHistory(String lexiconId, String username, Collection<String> wordIds) {
-        List<WordReviewHistory> wordReviewHistoryToSave = wordReviewHistoryDao.getWordReviewHistoryBatch(lexiconId, username, wordIds)
+        List<WordReviewHistory> wordReviewHistoryToSave = wordReviewHistoryDao.getWordReviewHistory(lexiconId, username, wordIds)
                 .stream()
                 .map(wordReviewHistory -> createEmptyWordReviewHistory(lexiconId, username, wordReviewHistory.wordId()))
                 .collect(Collectors.toUnmodifiableList());
 
-        wordReviewHistoryDao.updateWordReviewHistoryBatch(username, wordReviewHistoryToSave);
+        wordReviewHistoryDao.updateWordReviewHistory(username, wordReviewHistoryToSave);
     }
 
 
@@ -48,7 +49,7 @@ public class WordReviewHistoryService {
             return List.of();
         }
 
-        return wordReviewHistoryDao.getWordReviewHistoryBatch(lexiconId, username, wordIds);
+        return wordReviewHistoryDao.getWordReviewHistory(lexiconId, username, wordIds.stream().distinct().collect(Collectors.toUnmodifiableList()));
     }
 
     public List<WordReviewHistory> updateWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistories) {
@@ -56,7 +57,7 @@ public class WordReviewHistoryService {
             return List.of();
         }
 
-        return wordReviewHistoryDao.updateWordReviewHistoryBatch(username, wordReviewHistories);
+        return wordReviewHistoryDao.updateWordReviewHistory(username, wordReviewHistories);
     }
 
     public boolean hasWordsToLearn(String lexiconId, String username) {
@@ -90,6 +91,10 @@ public class WordReviewHistoryService {
 
     public int getTotalLearnedWordCount(String lexiconId, String username) {
         return wordReviewHistoryDao.getTotalLearnedWordCount(lexiconId, username);
+    }
+
+    public Map<LearnedStatus, List<String>> getWordIdsForUserByLearned(String lexiconId, String username) {
+        return wordReviewHistoryDao.getWordIdsForUserByLearned(lexiconId, username);
     }
 
     private WordReviewHistory createEmptyWordReviewHistory(String lexiconId, String username, String wordId) {

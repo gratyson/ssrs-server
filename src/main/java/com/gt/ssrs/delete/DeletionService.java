@@ -39,7 +39,8 @@ public class DeletionService {
     public void deleteLexicon(String username, String lexiconId) {
         verifyCanEditLexicon(username, lexiconId);
 
-        reviewSessionService.deleteAllLexiconReviewEvents(lexiconId, username);
+        reviewSessionService.deleteAllLexiconReviewEvents(lexiconId);
+        scheduledReviewService.deleteAllLexiconReviewEvents(lexiconId);
         wordReviewHistoryService.deleteLexiconWordReviewHistory(lexiconId);
         wordService.deleteLexiconWords(lexiconId, username);
         lexiconService.deleteLexiconMetadata(lexiconId, username);
@@ -48,18 +49,15 @@ public class DeletionService {
     public void deleteWords(String username, String lexiconId, Collection<String> wordIds) {
         verifyCanEditLexicon(username, lexiconId);
 
-        reviewSessionService.deleteScheduledReviewsForWords(lexiconId, wordIds, username);
+        reviewSessionService.deleteWordReviewEvents(lexiconId, wordIds);
+        scheduledReviewService.deleteScheduledReviewsForWords(lexiconId, wordIds);
         wordReviewHistoryService.deleteWordReviewHistories(lexiconId, wordIds);
         wordService.deleteWords(lexiconId, wordIds, username);
     }
 
     public void deleteUserWordTestHistory(String username, String lexiconId, Collection<String> wordIds) {
+        reviewSessionService.deleteWordReviewEventsForUser(lexiconId, username, wordIds);
         scheduledReviewService.deleteUserScheduledReviewForWords(lexiconId, wordIds, username);
-        wordReviewHistoryService.deleteUserWordReviewHistories(lexiconId, username, wordIds);
-    }
-
-    public void deleteUserScheduledReviews(String username, String lexiconId, Collection<String> wordIds) {
-        wordReviewHistoryService.deleteUserWordReviewHistories(lexiconId, username, wordIds);
     }
 
     private void verifyCanEditLexicon(String username, String lexiconId) {

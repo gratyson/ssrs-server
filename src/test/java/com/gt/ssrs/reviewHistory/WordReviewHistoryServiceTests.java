@@ -4,7 +4,6 @@ import com.gt.ssrs.language.TestRelationship;
 import com.gt.ssrs.model.TestHistory;
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordReviewHistory;
-import com.gt.ssrs.reviewSession.ScheduledReviewService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,7 +72,7 @@ public class WordReviewHistoryServiceTests {
         wordReviewHistoryService.createEmptyWordReviewHistoryForWords(TEST_USERNAME, wordsToSave);
 
         ArgumentCaptor<List<WordReviewHistory>> wordReviewHistoryCaptor = ArgumentCaptor.forClass(List.class);
-        verify(wordReviewHistoryDao, times(1)).createWordReviewHistoryBatch(eq(TEST_USERNAME), wordReviewHistoryCaptor.capture());
+        verify(wordReviewHistoryDao, times(1)).createWordReviewHistory(eq(TEST_USERNAME), wordReviewHistoryCaptor.capture());
         List<WordReviewHistory> savedWordReviewHistories = wordReviewHistoryCaptor.getValue();
 
         assertEquals(2, savedWordReviewHistories.size());
@@ -97,7 +96,7 @@ public class WordReviewHistoryServiceTests {
 
     @Test
     public void testGetWordReviewHistory() {
-        when(wordReviewHistoryDao.getWordReviewHistoryBatch(TEST_LEXICON_ID, TEST_USERNAME, List.of(WORD_1.id(), WORD_2.id()))).thenReturn(List.of(WORD_REVIEW_HISTORY_1, WORD_REVIEW_HISTORY_2));
+        when(wordReviewHistoryDao.getWordReviewHistory(TEST_LEXICON_ID, TEST_USERNAME, List.of(WORD_1.id(), WORD_2.id()))).thenReturn(List.of(WORD_REVIEW_HISTORY_1, WORD_REVIEW_HISTORY_2));
 
         List<WordReviewHistory> wordReviewHistories = wordReviewHistoryService.getWordReviewHistory(TEST_LEXICON_ID, TEST_USERNAME, List.of(WORD_1.id(), WORD_2.id()));
 
@@ -106,7 +105,7 @@ public class WordReviewHistoryServiceTests {
 
     @Test
     public void testUpdateWordReviewHistoryBatch() {
-        when(wordReviewHistoryDao.updateWordReviewHistoryBatch(TEST_USERNAME, List.of(WORD_REVIEW_HISTORY_1, WORD_REVIEW_HISTORY_2))).thenReturn(List.of(WORD_REVIEW_HISTORY_2));
+        when(wordReviewHistoryDao.updateWordReviewHistory(TEST_USERNAME, List.of(WORD_REVIEW_HISTORY_1, WORD_REVIEW_HISTORY_2))).thenReturn(List.of(WORD_REVIEW_HISTORY_2));
 
         assertEquals(List.of(WORD_REVIEW_HISTORY_2), wordReviewHistoryService.updateWordReviewHistoryBatch(TEST_USERNAME, List.of(WORD_REVIEW_HISTORY_1, WORD_REVIEW_HISTORY_2)));
     }

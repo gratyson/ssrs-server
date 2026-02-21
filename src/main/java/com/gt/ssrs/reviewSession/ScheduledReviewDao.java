@@ -1,6 +1,6 @@
 package com.gt.ssrs.reviewSession;
 
-import com.gt.ssrs.reviewSession.model.DBScheduledReview;
+import com.gt.ssrs.model.ScheduledReview;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -10,15 +10,23 @@ import java.util.Optional;
 
 public interface ScheduledReviewDao {
 
-    void createScheduledReviewsBatch(List<DBScheduledReview> scheduledReviews, String owner);
+    void createScheduledReviewsBatch(List<ScheduledReview> scheduledReviews);
 
-    public List<DBScheduledReview> loadScheduledReviews(String owner, String lexiconId, String testRelationshipId, Optional<Instant> cutoffInstant);
+    int markScheduledReviewComplete(String scheduledReviewId);
 
-    public List<DBScheduledReview> loadScheduledReviewsForWords(String owner, String lexiconId, Collection<String> wordIds);
+    List<ScheduledReview> loadScheduledReviews(String username, String lexiconId, String testRelationshipId, Optional<Instant> cutoffInstant);
 
-    public void deleteUserScheduledReviewForWords(String lexiconId, Collection<String> wordIds, String username);
+    List<ScheduledReview> loadScheduledReviewsForWords(String username, String lexiconId, Collection<String> wordIds);
 
-    public int adjustNextReviewTimes(String lexiconId, Duration adjustment);
+    void deleteUserScheduledReviewForWords(String lexiconId, Collection<String> wordIds, String username);
+
+    void deleteScheduledReviewsForWords(String lexiconId, Collection<String> wordIds);
+
+    void deleteAllLexiconReviewEventsForUser(String lexiconId, String username);
+
+    void deleteAllLexiconReviewEvents(String lexiconId);
+
+    int adjustNextReviewTimes(String lexiconId, String username, Duration adjustment);
 
     int purgeOldScheduledReviews(Instant cutoff);
 }

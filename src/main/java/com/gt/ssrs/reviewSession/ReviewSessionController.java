@@ -1,6 +1,7 @@
 package com.gt.ssrs.reviewSession;
 
 import com.gt.ssrs.model.*;
+import com.gt.ssrs.reviewSession.model.ClientReviewEvent;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,13 +32,13 @@ public class ReviewSessionController {
     }
 
     @PostMapping("saveEvent")
-    public void saveReviewEvent(@RequestBody ReviewEvent event,
+    public void saveReviewEvent(@RequestBody ClientReviewEvent event,
                                 @AuthenticationPrincipal UserDetails userDetails) {
         this.reviewSessionService.saveReviewEvent(event, userDetails.getUsername(), Instant.now());
     }
 
     @PostMapping("processManualEvent")
-    public void processManualEvent(@RequestBody ReviewEvent event,
+    public void processManualEvent(@RequestBody ClientReviewEvent event,
                                   @AuthenticationPrincipal UserDetails userDetails) {
         this.reviewSessionService.recordManualEvent(event, userDetails.getUsername());
         reviewEventProcessor.processEvents(userDetails.getUsername(), event.lexiconId());

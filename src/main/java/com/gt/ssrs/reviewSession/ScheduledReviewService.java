@@ -4,7 +4,6 @@ import com.gt.ssrs.exception.UserAccessException;
 import com.gt.ssrs.language.Language;
 import com.gt.ssrs.lexicon.LexiconService;
 import com.gt.ssrs.model.*;
-import com.gt.ssrs.reviewSession.model.DBScheduledReview;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,12 +54,12 @@ public class ScheduledReviewService {
         Language language = Language.getLanguageById(lexiconService.getLexiconLanguageId(lexiconId));
 
         List<String> wordHistoryWordIds = lexiconWordHistories.stream().map(WordReviewHistory::wordId).toList();
-        Map<String, List<DBScheduledReview>> existingScheduledReviews =
+        Map<String, List<ScheduledReview>> existingScheduledReviews =
                 scheduledReviewDao.loadScheduledReviewsForWords(lexiconId, username, wordHistoryWordIds)
                         .stream()
-                        .collect(Collectors.groupingBy(DBScheduledReview::wordId));
+                        .collect(Collectors.groupingBy(ScheduledReview::wordId));
 
-        List<DBScheduledReview> reviewsToSave = new ArrayList<>();
+        List<ScheduledReview> reviewsToSave = new ArrayList<>();
         for(WordReviewHistory wordHistory : lexiconWordHistories) {
             String idToUse = getReviewId(existingScheduledReviews.computeIfAbsent(wordHistory.wordId(), (wordId) -> List.of()));
 
@@ -70,29 +69,29 @@ public class ScheduledReviewService {
             reviewsToSave.add(buildScheduledReviewFromHistory(idToUse, username, wordHistory, nextTimeTime, nextTestRelationshipId));
         }
 
-        scheduledReviewDao.createScheduledReviewsBatch(reviewsToSave, username);
+        scheduledReviewDao.createScheduledReviewsBatch(reviewsToSave);
 
         return reviewsToSave.size();
     }
 
-    public Optional<ScheduledWordReview> loadEarliestScheduledReview(String lexiconId, String username, String wordId) {
-        Optional<DBScheduledReview> earliestScheduledReview = scheduledReviewDao.loadScheduledReviewsForWords(username, lexiconId, List.of(wordId))
+    public Optional<ScheduledReview> loadEarliestScheduledReview(String lexiconId, String username, String wordId) {
+        Optional<ScheduledReview> earliestScheduledReview = scheduledReviewDao.loadScheduledReviewsForWords(username, lexiconId, List.of(wordId))
                 .stream()
                 .filter(scheduledReview -> scheduledReview.reviewType().equals(ReviewType.Review))
-                .min(Comparator.comparing(DBScheduledReview::scheduledTestTime));
+                .min(Comparator.comparing(ScheduledReview::scheduledTestTime));
 
         if (earliestScheduledReview.isEmpty()) {
             return Optional.empty();
         }
 
-        return Optional.of(convertDbScheduledReview(earliestScheduledReview.get()));
+        return Optional.of(earliestScheduledReview.get());
     }
 
     public Map<String, Integer> getScheduledReviewCounts(String username, String lexiconId, Optional<Instant> cutoffInstant) {
         Map<String, Integer> scheduledReviewCounts = new HashMap<>();
 
-        for (ScheduledWordReview scheduledReview : getCurrentScheduledReviewForLexicon(lexiconId, username,Optional.empty(), cutoffInstant)) {
-            scheduledReviewCounts.put(scheduledReview.reviewRelationShip(), scheduledReviewCounts.getOrDefault(scheduledReview.reviewRelationShip(), 0) + 1);
+        for (ScheduledReview scheduledReview : getCurrentScheduledReviewForLexicon(lexiconId, username,Optional.empty(), cutoffInstant)) {
+            scheduledReviewCounts.put(scheduledReview.testRelationshipId(), scheduledReviewCounts.getOrDefault(scheduledReview.testRelationshipId(), 0) + 1);
         }
 
         return scheduledReviewCounts;
@@ -101,15 +100,27 @@ public class ScheduledReviewService {
     public void adjustNextReviewTimes(String lexiconId, Duration adjustment, String username) {
         verifyUserAccessAllowed(lexiconId, username);
 
-        scheduledReviewDao.adjustNextReviewTimes(lexiconId, adjustment);
+        scheduledReviewDao.adjustNextReviewTimes(lexiconId, username, adjustment);
     }
 
     public void deleteUserScheduledReviewForWords(String lexiconId, Collection<String> wordIds, String username) {
         scheduledReviewDao.deleteUserScheduledReviewForWords(lexiconId, wordIds, username);
     }
 
-    private String getReviewId(List<DBScheduledReview> scheduledReviews) {
-        for (DBScheduledReview scheduledReview : scheduledReviews) {
+    public void deleteScheduledReviewsForWords(String lexiconId, Collection<String> wordIds) {
+        scheduledReviewDao.deleteScheduledReviewsForWords(lexiconId, wordIds);
+    }
+
+    public void deleteAllLexiconReviewEventsForUser(String lexiconId, String username) {
+        scheduledReviewDao.deleteAllLexiconReviewEventsForUser(lexiconId, username);
+    }
+
+    public void deleteAllLexiconReviewEvents(String lexiconId) {
+        scheduledReviewDao.deleteAllLexiconReviewEvents(lexiconId);
+    }
+
+    private String getReviewId(List<ScheduledReview> scheduledReviews) {
+        for (ScheduledReview scheduledReview : scheduledReviews) {
             if (!scheduledReview.completed() && scheduledReview.reviewType() == ReviewType.Review) {
                 return scheduledReview.id();
             }
@@ -118,26 +129,25 @@ public class ScheduledReviewService {
         return UUID.randomUUID().toString();
     }
 
-    private DBScheduledReview buildScheduledReviewFromHistory(String id, String username, WordReviewHistory wordHistory, Instant nextTestTime, String nextTestRelationship) {
-        return new DBScheduledReview(id, username, wordHistory.lexiconId(), wordHistory.wordId(), ReviewType.Review, nextTestRelationship,
+    private ScheduledReview buildScheduledReviewFromHistory(String id, String username, WordReviewHistory wordHistory, Instant nextTestTime, String nextTestRelationship) {
+        return new ScheduledReview(id, username, wordHistory.lexiconId(), wordHistory.wordId(), ReviewType.Review, nextTestRelationship,
                 nextTestTime, Duration.between(wordHistory.mostRecentTestTime(), nextTestTime), false);
     }
 
-    public List<ScheduledWordReview> getCurrentScheduledReviewForLexicon(String lexiconId, String username, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
+    public List<ScheduledReview> getCurrentScheduledReviewForLexicon(String lexiconId, String username, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
         Instant now = Instant.now();
 
-        List<DBScheduledReview> scheduledReviews = scheduledReviewDao.loadScheduledReviews(username, lexiconId, reviewRelationship.orElse(""), cutoffInstant);
+        List<ScheduledReview> scheduledReviews = scheduledReviewDao.loadScheduledReviews(username, lexiconId, reviewRelationship.orElse(""), cutoffInstant);
+
 
         if (cutoffInstant.isPresent() && cutoffInstant.get().isAfter(now)) {
             scheduledReviews = scheduledReviews.stream().filter(scheduledReview -> isFutureEventAllowed(scheduledReview, now)).toList();
         }
 
-        return scheduledReviews.stream()
-                .map(dbScheduledReview -> convertDbScheduledReview(dbScheduledReview))
-                .collect(Collectors.toUnmodifiableList());
+        return scheduledReviews;
     }
 
-    private boolean isFutureEventAllowed(DBScheduledReview dbScheduledReview, Instant now) {
+    private boolean isFutureEventAllowed(ScheduledReview dbScheduledReview, Instant now) {
         return (dbScheduledReview.scheduledTestTime().toEpochMilli() - now.toEpochMilli()) < (dbScheduledReview.testDelay().toMillis() * (1 - futureEventAllowedRatio));
     }
 
@@ -158,9 +168,5 @@ public class ScheduledReviewService {
             log.error(errMsg);
             throw new UserAccessException(errMsg);
         }
-    }
-
-    private ScheduledWordReview convertDbScheduledReview(DBScheduledReview dbScheduledReview) {
-        return new ScheduledWordReview(dbScheduledReview.id(), dbScheduledReview.wordId(), dbScheduledReview.testRelationshipId(), ReviewType.Review);
     }
 }

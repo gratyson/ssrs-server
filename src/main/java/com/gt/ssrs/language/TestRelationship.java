@@ -40,6 +40,16 @@ public enum TestRelationship {
         return testRelationshipById.get(id);
     }
 
+    public static TestRelationship getTestRelationshipByElements(String testOn, String promptWith) {
+        for (TestRelationship testRelationship : values()) {
+            if (testRelationship.getTestOn().getId().equals(testOn) && testRelationship.getPromptWith().getId().equals(promptWith)) {
+                return testRelationship;
+            }
+        }
+
+        return null;
+    }
+
     public String getId() {
         return id;
     }
