@@ -1,18 +1,15 @@
 package com.gt.ssrs.security;
 
-import com.gt.ssrs.exception.InvalidUserDetailsException;
+import com.gt.ssrs.auth.AuthenticatedUser;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,52 +18,50 @@ public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
-
-    private final AuthenticationManager authenticationManager;
-    private final LocalUserDetailsManager localUserDetailsManager;
-    private final JwtService jwtService;
-    private final String jwtCookieName;
+    private final AuthService authService;
+    private final String tokenCookieName;
+    private final String displayNameCookieName;
     private final long cookieExpirySec;
     private final boolean allowUserRegistration;
 
-    public AuthController(AuthenticationManager authenticationManager,
-                          LocalUserDetailsManager localUserDetailsManager,
-                          JwtService jwtService,
-                          @Value("${server.jwt.cookieName}") String jwtCookieName,
+    @Autowired
+    public AuthController(AuthService authService,
+                          @Value("${server.jwt.tokenCookieName}") String tokenCookieName,
+                          @Value("${server.jwt.displayNameCookieName}") String displayNameCookieName,
                           @Value("${server.jwt.cookieExpirySec}") long cookieExpirySec,
                           @Value("${ssrs.security.allowUserRegistration}") boolean allowUserRegistration) {
-        this.authenticationManager = authenticationManager;
-        this.localUserDetailsManager = localUserDetailsManager;
-        this.jwtService = jwtService;
-        this.jwtCookieName = jwtCookieName;
+
+        this.authService = authService;
+        this.tokenCookieName = tokenCookieName;
+        this.displayNameCookieName = displayNameCookieName;
         this.cookieExpirySec = cookieExpirySec;
         this.allowUserRegistration = allowUserRegistration;
     }
 
     @GetMapping("/username")
-    public String getLoggedInUsername(@AuthenticationPrincipal UserDetails userDetails) {
-        if (userDetails != null && userDetails.getUsername() != null) {
-            return userDetails.getUsername();
+    public String getLoggedInUsername(@AuthenticatedUser String userId, HttpServletRequest httpServletRequest) {
+        if (userId == null || userId.isBlank()) {
+            return "";
         }
 
-        return "";
+        String displayName = getDisplayNameFromCookie(httpServletRequest);
+        if (displayName != null && !displayName.isBlank()) {
+            return displayName;
+        }
+
+        // Fallback in case the username cookie is not set -- need to return a value so the client knows the user is logged in
+        return userId;
     }
 
     @PostMapping("/login")
     public LoginResponse login(@RequestBody LoginRequest loginRequest, HttpServletResponse httpServletResponse) {
-        ResponseCookie responseCookie = AuthenticateAndBuildCookie(loginRequest.username, loginRequest.password);
-        if (responseCookie == null) {
-            return new LoginResponse(false, "Login unsuccessful");
-        }
-
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, responseCookie.toString());
-        return new LoginResponse(true, "");
+        return loginAndSetCookies(loginRequest.username, loginRequest.password, httpServletResponse);
     }
 
     @PostMapping("/logout")
     public void logout(HttpServletResponse httpServletResponse) {
-        ResponseCookie cookie = buildAuthCookie(null, 0);
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildAuthTokenCookie(null, 0).toString());
+        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildDisplayNameCookie(null, 0).toString());
     }
 
     @GetMapping("/canRegister")
@@ -80,47 +75,69 @@ public class AuthController {
             return new RegisterResponse(false, "New users cannot be registered");
         }
 
-        try {
-            localUserDetailsManager.createUser(registerRequest.username, registerRequest.password, registerRequest.reenterPassword);
-        } catch (InvalidUserDetailsException ex) {
-            return new RegisterResponse(false, ex.getMessage());
+        AuthService.AuthRequestResponse authRequestResponse = authService.registerUser(registerRequest.username, registerRequest.password, registerRequest.reenterPassword);
+
+        if (!authRequestResponse.success()) {
+            return new RegisterResponse(false, authRequestResponse.errorMsg());
         }
 
-        ResponseCookie responseCookie = AuthenticateAndBuildCookie(registerRequest.username, registerRequest.password);
-        if (responseCookie == null) {
-            return new RegisterResponse(false, "Failed to save user");
-        }
-
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, responseCookie.toString());
-        return new RegisterResponse(true, "");
+        LoginResponse loginResponse = loginAndSetCookies(registerRequest.username, registerRequest.password, httpServletResponse);
+        return new RegisterResponse(loginResponse.success, loginResponse.errMsg);
     }
 
-    private ResponseCookie AuthenticateAndBuildCookie(String username, String password) {
-        Authentication authenticationRequest = UsernamePasswordAuthenticationToken.unauthenticated(username, password);
-        Authentication authenticationResponse;
-
-        try {
-            authenticationResponse = this.authenticationManager.authenticate(authenticationRequest);
-        } catch (BadCredentialsException ex) {
-            return null;
+    @PostMapping("/changePassword")
+    public ChangePasswordResponse changePassword(@AuthenticatedUser String userId, @RequestBody ChangePasswordRequest changePasswordRequest, HttpServletRequest httpServletRequest) {
+        if (userId == null || userId.isBlank()) {
+            return new ChangePasswordResponse(false, "User is not authenticated");
         }
 
-        if (authenticationResponse.isAuthenticated()) {
-            String accessToken = jwtService.generateToken(username);
-            ResponseCookie cookie = buildAuthCookie(accessToken, cookieExpirySec);
+        String displayName = getDisplayNameFromCookie(httpServletRequest);
 
-            return cookie;
-        }
-        return null;
+        AuthService.AuthRequestResponse authRequestResponse = authService.changeUserPassword(
+                displayName,
+                changePasswordRequest.oldPassword,
+                changePasswordRequest.newPassword,
+                changePasswordRequest.reenterNewPassword);
+
+        return new ChangePasswordResponse(authRequestResponse.success(), authRequestResponse.errorMsg());
     }
 
-    private ResponseCookie buildAuthCookie(String token, long expirySec) {
-        return ResponseCookie.from(jwtCookieName, token)
+    private LoginResponse loginAndSetCookies(String username, String password, HttpServletResponse httpServletResponse) {
+        String accessToken = authService.authenticateAndGetToken(username, password);
+
+        if (accessToken == null || accessToken.isBlank()) {
+            return new LoginResponse(false, "Login unsuccessful");
+        }
+
+        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildAuthTokenCookie(accessToken, cookieExpirySec).toString());
+        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildDisplayNameCookie(username, cookieExpirySec).toString());
+        return new LoginResponse(true, "");
+    }
+
+    private ResponseCookie buildAuthTokenCookie(String token, long cookieExpirySec) {
+        return buildCookie(tokenCookieName, token, cookieExpirySec);
+    }
+
+    private ResponseCookie buildDisplayNameCookie(String displayName, long cookieExpirySec) {
+        return buildCookie(displayNameCookieName, displayName, cookieExpirySec);
+    }
+
+    private ResponseCookie buildCookie(String cookieName, String cookieValue, long cookieExpirySec) {
+        return ResponseCookie.from(cookieName, cookieValue)
                 .httpOnly(false)
-                .secure(false)
                 .path("/")
-                .maxAge(expirySec)
+                .maxAge(cookieExpirySec)
                 .build();
+    }
+
+    private String getDisplayNameFromCookie(HttpServletRequest httpServletRequest) {
+        for (Cookie cookie : httpServletRequest.getCookies()) {
+            if (cookie.getName().equals(displayNameCookieName)) {
+                return cookie.getValue();
+            }
+        }
+
+        return "";
     }
 
     private record LoginRequest(String username, String password) { }
@@ -128,4 +145,7 @@ public class AuthController {
 
     private record RegisterRequest(String username, String password, String reenterPassword) { }
     private record RegisterResponse(boolean success, String errMsg) { }
+
+    private record ChangePasswordRequest(String username, String oldPassword, String newPassword, String reenterNewPassword) { }
+    private record ChangePasswordResponse(boolean success, String errMsg) { }
 }

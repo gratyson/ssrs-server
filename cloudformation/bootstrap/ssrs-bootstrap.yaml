@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  UniqueId:
+    Description: A unique identifer to append to the name of global resources (s3, etc.)
+    Type: String
+
+Resources:
+  SsrsDeployBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ssrs-deploy-${UniqueId}
+
+  SsrsDeployUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub ssrs-deploy-user
+
+  SsrsDeployUserPolicy:
+    Type: AWS::IAM::UserPolicy
+    Properties:
+      PolicyName: !Sub ssrs-deploy-user-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:DeleteObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::ssrs-deploy-${UniqueId}
+              - !Sub arn:aws:s3:::ssrs-deploy-${UniqueId}/*
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-${UniqueId}
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-${UniqueId}/*
+          - Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - S3:DeleteBucket
+              - s3:GetBucketPolicy
+              - s3:PutBucketPolicy
+              - s3:PutBucketPublicAccessBlock
+              - s3:DeleteBucketPolicy
+              - s3:PutBucketWebsite
+            Resource:
+              - arn:aws:s3:::ssrs*
+          - Effect: Allow
+            Action:
+              - lambda:CreateFunction
+              - lambda:DeleteFunction
+              - lambda:GetFunction
+              - lambda:ListFunctions
+              - lambda:UpdateFunctionCode
+              - lambda:UpdateFunctionConfiguration
+            Resource:
+              - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ssrs*
+          - Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+            Resource:
+              - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ssrs*
+      UserName: !Sub ssrs-deploy-user
+    DependsOn: SsrsDeployUser

@@ -57,7 +57,6 @@ public class WordService {
     public Word updateWord(Word word, String username) {
         Word oldWord = loadWord(word.id());
         if (oldWord != null && !oldWord.owner().equals(username)) {
-            // TODO: Create new word if owned by another user
             return null;
         }
 

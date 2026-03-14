@@ -1,0 +1,17 @@
+STAGE=dev
+GLOBAL_UNIQUE_ID=1b3e4339
+VERSION=1.0
+
+CODE_DEPLOY_PROFILE_NAME=deploy-user
+RESOURCE_DEPLOY_PROFILE_NAME=console-user
+S3_DEPLOY_BUCKET_NAME=ssrs-deploy-$GLOBAL_UNIQUE_ID
+S3_FRONTEND_BUCKET_NAME=ssrs-frontend-assets-$GLOBAL_UNIQUE_ID
+REGION=us-west-2
+
+STACK_NAME=ssrs-resources-$STAGE
+LAMBDA_FUNCTION_NAME=ssrs-function-$STAGE
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SSRS_SERVER_DIR=$SCRIPT_DIR/..
+SSRS_CLIENT_DIR=$SCRIPT_DIR/../../ssrs-client
+

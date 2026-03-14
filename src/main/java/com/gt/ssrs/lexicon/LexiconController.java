@@ -1,5 +1,6 @@
 package com.gt.ssrs.lexicon;
 
+import com.gt.ssrs.auth.AuthenticatedUser;
 import com.gt.ssrs.delete.DeletionService;
 import com.gt.ssrs.model.LexiconMetadata;
 import com.gt.ssrs.model.Word;
@@ -7,12 +8,11 @@ import com.gt.ssrs.model.WordFilterOptions;
 import com.gt.ssrs.reviewHistory.WordReviewHistoryService;
 import com.gt.ssrs.reviewSession.ReviewEventProcessor;
 import com.gt.ssrs.reviewSession.ScheduledReviewService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.gt.ssrs.word.WordService;
@@ -52,22 +52,22 @@ public class LexiconController {
     }
 
     @GetMapping(value = "/allLexiconMetadata", produces = "application/json")
-    public List<LexiconMetadata> getAllLexiconMetadata(@AuthenticationPrincipal UserDetails userDetails) {
-        return lexiconService.getAllLexiconMetadata(userDetails.getUsername());
+    public List<LexiconMetadata> getAllLexiconMetadata(@AuthenticatedUser String username, HttpServletRequest request) {
+        return lexiconService.getAllLexiconMetadata(username);
     }
 
     @GetMapping(value = "/allLexiconMetadataAndScheduledCounts", produces = "application/json")
     public List<LexiconMetadataAndScheduledCounts> getAllLexiconMetadataAndScheduledCounts(@RequestParam(value = "cutoff") Optional<Instant> cutoffInstant,
-                                                                                           @AuthenticationPrincipal UserDetails userDetails,
+                                                                                           @AuthenticatedUser String username,
                                                                                            HttpServletResponse response) {
         List<LexiconMetadataAndScheduledCounts> lexiconMetadataAndScheduledCounts = new ArrayList<>();
 
-        for(LexiconMetadata lexiconMetadata : lexiconService.getAllLexiconMetadata(userDetails.getUsername())) {
-            reviewEventProcessor.processEvents(userDetails.getUsername(), lexiconMetadata.id());
+        for(LexiconMetadata lexiconMetadata : lexiconService.getAllLexiconMetadata(username)) {
+            reviewEventProcessor.processEvents(username, lexiconMetadata.id());
             lexiconMetadataAndScheduledCounts.add(new LexiconMetadataAndScheduledCounts(
                     lexiconMetadata,
-                    scheduledReviewService.getScheduledReviewCounts(userDetails.getUsername(), lexiconMetadata.id(), cutoffInstant),
-                    wordReviewHistoryService.hasWordsToLearn(lexiconMetadata.id(), userDetails.getUsername())));
+                    scheduledReviewService.getScheduledReviewCounts(username, lexiconMetadata.id(), cutoffInstant),
+                    wordReviewHistoryService.hasWordsToLearn(lexiconMetadata.id(), username)));
         }
 
         return lexiconMetadataAndScheduledCounts;
@@ -78,12 +78,12 @@ public class LexiconController {
         return lexiconService.getLexiconMetadata(lexiconId);
     }
 
-    @PutMapping(value = "/saveLexiconMetadata", produces = "application/json")
+    @PostMapping(value = "/saveLexiconMetadata", produces = "application/json")
     public LexiconMetadata saveLexiconMetadata(@RequestPart("lexicon") LexiconMetadata lexicon,
                                                @RequestPart(value = "file") MultipartFile file,
-                                               @AuthenticationPrincipal UserDetails userDetails,
+                                               @AuthenticatedUser String username,
                                                HttpServletResponse response) throws IOException {
-        LexiconMetadata newLexiconMetadata = lexiconService.saveLexiconMetadata(userDetails.getUsername(), lexicon, file);
+        LexiconMetadata newLexiconMetadata = lexiconService.saveLexiconMetadata(username, lexicon, file);
         if (newLexiconMetadata != null) {
             response.setStatus(HttpServletResponse.SC_ACCEPTED);
             return newLexiconMetadata;
@@ -95,8 +95,8 @@ public class LexiconController {
 
     @PostMapping(value = "/deleteLexicon")
     public void deleteLexicon(@RequestBody String lexiconId,
-                              @AuthenticationPrincipal UserDetails userDetails) {
-        deletionService.deleteLexicon(userDetails.getUsername(), lexiconId);
+                              @AuthenticatedUser String username) {
+        deletionService.deleteLexicon(username, lexiconId);
     }
 
     @GetMapping(value = "/word", produces = "application/json")
@@ -106,9 +106,9 @@ public class LexiconController {
 
     @PostMapping(value = "/updateWord", consumes = "application/json", produces = "application/json")
     public Word updateWord(@RequestBody Word word,
-                           @AuthenticationPrincipal UserDetails userDetails,
+                           @AuthenticatedUser String username,
                            HttpServletResponse response) {
-        Word updatedWord = wordService.updateWord(word, userDetails.getUsername());
+        Word updatedWord = wordService.updateWord(word, username);
         if (updatedWord != null) {
             response.setStatus(HttpServletResponse.SC_ACCEPTED);
             return updatedWord;
@@ -120,15 +120,15 @@ public class LexiconController {
 
     @PostMapping(value = "/deleteWords", consumes = "application/json")
     public void deleteWords(@RequestBody DeleteWordsRequest deleteWordsRequest,
-                           @AuthenticationPrincipal UserDetails userDetails) {
-        deletionService.deleteWords(userDetails.getUsername(), deleteWordsRequest.lexiconId(), deleteWordsRequest.wordIds());
+                            @AuthenticatedUser String username) {
+        deletionService.deleteWords(username, deleteWordsRequest.lexiconId(), deleteWordsRequest.wordIds());
     }
 
-    @PutMapping(value = "/saveWords", consumes = "application/json", produces = "application/json")
+    @PostMapping(value = "/saveWords", consumes = "application/json", produces = "application/json")
     public List<Word> saveWords(@RequestBody SaveWordsRequest saveWordsRequest,
-                                @AuthenticationPrincipal UserDetails userDetails,
+                                @AuthenticatedUser String username,
                                 HttpServletResponse response) {
-        List<Word> savedWords = wordService.saveWords(saveWordsRequest.words(), saveWordsRequest.lexiconId(), userDetails.getUsername());
+        List<Word> savedWords = wordService.saveWords(saveWordsRequest.words(), saveWordsRequest.lexiconId(), username);
 
         response.setStatus(HttpServletResponse.SC_ACCEPTED);
         return savedWords;
@@ -136,10 +136,10 @@ public class LexiconController {
 
     @PostMapping(value = "/lexiconWords", consumes = "application/json", produces = "application/json")
     public List<Word> getLexiconWordsBatch(@RequestBody GetLexiconWordsBatchRequest getLexiconWordsBatchRequest,
-                                           @AuthenticationPrincipal UserDetails userDetails) {
+                                           @AuthenticatedUser String username) {
         return wordService.getLexiconWordsBatch(
                 getLexiconWordsBatchRequest.lexiconId(),
-                userDetails.getUsername(),
+                username,
                 getLexiconWordsBatchRequest.count(),
                 getLexiconWordsBatchRequest.offset(),
                 getLexiconWordsBatchRequest.lastWord(),

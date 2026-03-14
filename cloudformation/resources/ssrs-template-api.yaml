@@ -1,0 +1,304 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: "AWS::LanguageExtensions"
+
+Parameters:
+  Stage:
+    Description: The stage to deploy (e.g. dev, prod, etc.)
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  SsrsRestApiId:
+    Description: The base API id
+    Type: String
+  SsrsRestApiRootResourceId:
+    Description: The root resource ID to add the endpoints under
+    Type: String
+  SsrsFunctionArn:
+    Description: The ARN of the lambda function backing the API
+    Type: String
+  FrontendAssetBucketName:
+    Description: The name of the bucket containing the front-end assets
+    Type: String
+  SsrsRestApiAuthorizerId:
+    Description: The authorized ID to use for the API methods
+    Type: String
+
+Resources:
+  SsrsRestApiRedirect:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Sub ${SsrsRestApiRootResourceId}
+      AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: 302
+          ResponseParameters:
+            method.response.header.Location: "app"
+      Integration:
+        Type: MOCK
+        IntegrationHttpMethod: GET
+        RequestTemplates:
+          application/json: '{ "statusCode": 302 }'
+        IntegrationResponses:
+          - StatusCode: 302
+            ResponseParameters:
+              method.response.header.Location: "'app'"
+            ResponseTemplates:
+              application/json: '{ "statusCode": 302 }'
+
+  SsrsRestApiResourceApp:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Sub ${SsrsRestApiRootResourceId}
+      PathPart: app
+  SsrsRestApiResourceAppGET:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceApp
+      AuthorizationType: NONE
+      Integration:
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: GET
+        Uri: !Sub
+          - https://${FrontendAssetBucketName}.s3.${AWS::Region}.amazonaws.com/index.html
+          - FrontendAssetBucketName: !Sub ${FrontendAssetBucketName}
+      MethodResponses:
+        - StatusCode: 200
+
+  SsrsRestApiResourceBaseProxy:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Sub ${SsrsRestApiRootResourceId}
+      PathPart: '{proxy+}'
+  SsrsRestApiResourceBaseProxyGET:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceBaseProxy
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: ANY
+        Uri: !Sub https://${FrontendAssetBucketName}.s3.${AWS::Region}.amazonaws.com/{proxy}
+        IntegrationResponses:
+          - StatusCode: 200
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+        PassthroughBehavior: WHEN_NO_MATCH
+      MethodResponses:
+        - StatusCode: 200
+
+  SsrsRestApiResourceAppProxy:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceApp
+      PathPart: '{proxy+}'
+  SsrsRestApiResourceAppProxyGET:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceAppProxy
+      AuthorizationType: NONE
+      Integration:
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: GET
+        Uri: !Sub
+          - https://${FrontendAssetBucketName}.s3.${AWS::Region}.amazonaws.com/index.html
+          - FrontendAssetBucketName: !Sub ${FrontendAssetBucketName}
+      MethodResponses:
+        - StatusCode: 200
+
+
+
+  SsrsRestApiResourceRest:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Sub ${SsrsRestApiRootResourceId}
+      PathPart: rest
+
+
+  SsrsRestApiResourceRestAuth:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceRest
+      PathPart: auth
+
+  SsrsRestApiResourceRestAuthUsername:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceRestAuth
+      PathPart: username
+  SsrsRestApiResourceRestAuthUsernameGET:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceRestAuthUsername
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Sub ${SsrsRestApiAuthorizerId}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+
+  SsrsRestApiResourceRestAuthLogin:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceRestAuth
+      PathPart: login
+  SsrsRestApiResourceRestAuthLoginPOST:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceRestAuthLogin
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+
+  SsrsRestApiResourceRestAuthLogout:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceRestAuth
+      PathPart: logout
+  SsrsRestApiResourceRestAuthLogoutPOST:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceRestAuthLogout
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Sub ${SsrsRestApiAuthorizerId}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+
+  SsrsRestApiResourceRestAuthChangePassword:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceRestAuth
+      PathPart: changePassword
+  SsrsRestApiResourceRestAuthChangePasswordPOST:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceRestAuthChangePassword
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Sub ${SsrsRestApiAuthorizerId}
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+
+  SsrsRestApiResourceRestAuthCanRegister:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceRestAuth
+      PathPart: canRegister
+  SsrsRestApiResourceRestAuthcanRegisterGET:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceRestAuthCanRegister
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+
+  SsrsRestApiResourceRestAuthRegister:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Ref SsrsRestApiResourceRestAuth
+      PathPart: register
+  SsrsRestApiResourceRestAuthRegisterPOST:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourceRestAuthRegister
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+
+
+  # Unlike the /auth endpoints which need more granular control over the authorizers, the remainder all require authorization so just set up a proxy resource for each controller
+  Fn::ForEach::ApiResources:
+    - ResourceName
+    - - review
+      - lexicon
+      - history
+      - language
+      - blob
+      - audio
+      - userConfig
+      - userNotepad
+    - SsrsRestApiResourceRest${ResourceName}:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+          RestApiId: !Sub ${SsrsRestApiId}
+          ParentId: !Ref SsrsRestApiResourceRest
+          PathPart: !Sub ${ResourceName}
+      SsrsRestApiResourceRest${ResourceName}Proxy:
+        Type: AWS::ApiGateway::Resource
+        Properties:
+          RestApiId: !Sub ${SsrsRestApiId}
+          ParentId: !GetAtt
+            - !Sub SsrsRestApiResourceRest${ResourceName}
+            - ResourceId
+          PathPart: '{proxy+}'
+      SsrsRestApiResourceRest${ResourceName}ProxyGET:
+        Type: AWS::ApiGateway::Method
+        Properties:
+          HttpMethod: GET
+          AuthorizationType: COGNITO_USER_POOLS
+          AuthorizerId: !Sub ${SsrsRestApiAuthorizerId}
+          ResourceId: !GetAtt
+            - !Sub SsrsRestApiResourceRest${ResourceName}Proxy
+            - ResourceId
+          RestApiId: !Sub ${SsrsRestApiId}
+          Integration:
+            Type: AWS_PROXY
+            IntegrationHttpMethod: POST
+            Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+      SsrsRestApiResourceRest${ResourceName}ProxyPOST:
+        Type: AWS::ApiGateway::Method
+        Properties:
+          HttpMethod: POST
+          AuthorizationType: COGNITO_USER_POOLS
+          AuthorizerId: !Sub ${SsrsRestApiAuthorizerId}
+          ResourceId: !GetAtt
+            - !Sub SsrsRestApiResourceRest${ResourceName}Proxy
+            - ResourceId
+          RestApiId: !Sub ${SsrsRestApiId}
+          Integration:
+            Type: AWS_PROXY
+            IntegrationHttpMethod: POST
+            Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations

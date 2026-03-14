@@ -11,7 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import com.gt.ssrs.word.WordService;
 
@@ -44,11 +44,11 @@ public class ReviewEventProcessorTests {
     private static final double NEAR_MISS_INCORRECT_BOOST = 3;
     private static final String LAST_TEST_RELATIONSHIP_ID = TestRelationship.KanaToKanji.getId();
 
-    @Mock private ReviewEventDao reviewEventDao;
-    @Mock private ScheduledReviewDao scheduledReviewDao;
-    @Mock private LexiconService lexiconService;
-    @Mock private WordService wordService;
-    @Mock private WordReviewHistoryService wordReviewHistoryService;
+    @MockitoBean private ReviewEventDao reviewEventDao;
+    @MockitoBean private ScheduledReviewDao scheduledReviewDao;
+    @MockitoBean private LexiconService lexiconService;
+    @MockitoBean private WordService wordService;
+    @MockitoBean private WordReviewHistoryService wordReviewHistoryService;
 
     private ReviewEventProcessor reviewEventProcessor;
 

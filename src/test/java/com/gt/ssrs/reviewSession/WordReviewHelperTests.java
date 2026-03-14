@@ -12,7 +12,7 @@ import com.gt.ssrs.reviewHistory.WordReviewHistoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.Instant;
@@ -46,9 +46,9 @@ public class WordReviewHelperTests {
     // How many times to repeat each test to verify the random aspects
     private static final int REPEATED_TEST_COUNT = 4;
 
-    @Mock private WordReviewHistoryService wordReviewHistoryService;
-    @Mock private LexiconService lexiconService;
-    @Mock private WordService wordService;
+    @MockitoBean private WordReviewHistoryService wordReviewHistoryService;
+    @MockitoBean private LexiconService lexiconService;
+    @MockitoBean private WordService wordService;
     private final int testBaseTimeSec = 10;
     private final int testAdditionalTimePerChar = 2;
     private int minTypingTestChars = 8;

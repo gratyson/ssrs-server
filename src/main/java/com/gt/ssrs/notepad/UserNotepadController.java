@@ -1,10 +1,7 @@
 package com.gt.ssrs.notepad;
 
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import com.gt.ssrs.auth.AuthenticatedUser;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/rest/userNotepad")
@@ -17,15 +14,15 @@ public class UserNotepadController {
     }
 
     @GetMapping("getNotepadText")
-    public String getUserNotepad(@AuthenticationPrincipal UserDetails userDetails) {
-        return userNotepadService.getUserNotepadText(userDetails.getUsername());
+    public String getUserNotepad(@AuthenticatedUser String username) {
+        return userNotepadService.getUserNotepadText(username);
     }
 
     @PostMapping("setNotepadText")
     public void setUserNotepad(@RequestBody SaveUserNotepadTextRequest saveUserNotepadTextRequest,
-                               @AuthenticationPrincipal UserDetails userDetails) {
-        userNotepadService.saveUserNotepadText(userDetails.getUsername(), saveUserNotepadTextRequest.notepadText);
+                               @AuthenticatedUser String username) {
+        userNotepadService.saveUserNotepadText(username, saveUserNotepadTextRequest.notepadText);
     }
 
-    private record SaveUserNotepadTextRequest(String notepadText) { }
+    public record SaveUserNotepadTextRequest(String notepadText) { }
 }

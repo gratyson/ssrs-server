@@ -1,12 +1,11 @@
 package com.gt.ssrs.reviewSession;
 
+import com.gt.ssrs.auth.AuthenticatedUser;
 import com.gt.ssrs.model.*;
 import com.gt.ssrs.reviewSession.model.ClientReviewEvent;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -33,50 +32,50 @@ public class ReviewSessionController {
 
     @PostMapping("saveEvent")
     public void saveReviewEvent(@RequestBody ClientReviewEvent event,
-                                @AuthenticationPrincipal UserDetails userDetails) {
-        this.reviewSessionService.saveReviewEvent(event, userDetails.getUsername(), Instant.now());
+                                @AuthenticatedUser String username) {
+        this.reviewSessionService.saveReviewEvent(event, username, Instant.now());
     }
 
     @PostMapping("processManualEvent")
     public void processManualEvent(@RequestBody ClientReviewEvent event,
-                                  @AuthenticationPrincipal UserDetails userDetails) {
-        this.reviewSessionService.recordManualEvent(event, userDetails.getUsername());
-        reviewEventProcessor.processEvents(userDetails.getUsername(), event.lexiconId());
+                                   @AuthenticatedUser String username) {
+        this.reviewSessionService.recordManualEvent(event, username);
+        reviewEventProcessor.processEvents(username, event.lexiconId());
     }
 
     @PostMapping("generateLearningSession")
     public List<List<WordReview>> generateLearningSession(@RequestBody GenerateLearningSessionRequest request,
-                                                          @AuthenticationPrincipal UserDetails userDetails,
+                                                          @AuthenticatedUser String username,
                                                           HttpServletResponse response) {
-        return reviewSessionService.generateLearningSession(request.lexiconId(), request.wordCnt(), userDetails.getUsername());
+        return reviewSessionService.generateLearningSession(request.lexiconId(), request.wordCnt(), username);
     }
 
     @PostMapping("generateReviewSession")
     public List<WordReview> generateReviewSession(@RequestBody GenerateReviewSessionRequest request,
-                                                  @AuthenticationPrincipal UserDetails userDetails,
+                                                  @AuthenticatedUser String username,
                                                   HttpServletResponse response) {
         return reviewSessionService.generateReviewSession(
                 request.lexiconId(),
                 request.testRelationship != null && !request.testRelationship.isBlank() ? Optional.of(request.testRelationship) : Optional.empty(),
                 request.cutoff,
                 request.maxWordCnt(),
-                userDetails.getUsername());
+                username);
     }
 
     @PostMapping(value = "/adjustNextReviewTimes", consumes = "application/json", produces = "application/json")
     public void adjustNextReviewTimes(@RequestBody AdjustNextReviewTimesRequest adjustNextReviewTimesRequest,
-                                      @AuthenticationPrincipal UserDetails userDetails) {
+                                      @AuthenticatedUser String username) {
         scheduledReviewService.adjustNextReviewTimes(
                 adjustNextReviewTimesRequest.lexiconId,
                 adjustNextReviewTimesRequest.adjustment,
-                userDetails.getUsername());
+                username);
     }
 
     @GetMapping(value = "/lexiconReviewSummary", produces = "application/json")
     public LexiconReviewSummary getLexiconReviewSummary(@RequestParam(value = "lexiconId") String lexiconId,
                                                         @RequestParam(value = "futureEventCutoff") Instant futureEventCutoff,
-                                                        @AuthenticationPrincipal UserDetails userDetails) {
-        return reviewEventProcessor.getLexiconReviewSummary(lexiconId, userDetails.getUsername(), futureEventCutoff);
+                                                        @AuthenticatedUser String username) {
+        return reviewEventProcessor.getLexiconReviewSummary(lexiconId, username, futureEventCutoff);
     }
 
     private record GenerateLearningSessionRequest(String lexiconId, int wordCnt) { }

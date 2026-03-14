@@ -3,7 +3,6 @@ package com.gt.ssrs.reviewHistory;
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordReviewHistory;
 import com.gt.ssrs.reviewHistory.model.LearnedStatus;
-import io.jsonwebtoken.lang.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +44,7 @@ public class WordReviewHistoryService {
 
 
     public List<WordReviewHistory> getWordReviewHistory(String lexiconId, String username, Collection<String> wordIds) {
-        if (Collections.isEmpty(wordIds)) {
+        if (wordIds == null || wordIds.isEmpty()) {
             return List.of();
         }
 
@@ -53,7 +52,7 @@ public class WordReviewHistoryService {
     }
 
     public List<WordReviewHistory> updateWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistories) {
-        if (Collections.isEmpty(wordReviewHistories)) {
+        if (wordReviewHistories == null || wordReviewHistories.isEmpty()) {
             return List.of();
         }
 
@@ -70,13 +69,13 @@ public class WordReviewHistoryService {
     }
 
     public void deleteUserWordReviewHistories(String lexiconId, String username, Collection<String> wordIds) {
-        if (!Collections.isEmpty(wordIds)) {
+        if (wordIds != null && !wordIds.isEmpty()) {
             wordReviewHistoryDao.deleteUserWordReviewHistories(lexiconId, username, wordIds);
         }
     }
 
     public void deleteWordReviewHistories(String lexiconId, Collection<String> wordIds) {
-        if (!Collections.isEmpty(wordIds)) {
+        if (wordIds != null && !wordIds.isEmpty()) {
             wordReviewHistoryDao.deleteWordReviewHistories(lexiconId, wordIds);
         }
     }

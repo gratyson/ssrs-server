@@ -7,7 +7,7 @@ import com.gt.ssrs.model.Word;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.Instant;
@@ -54,8 +54,8 @@ public class LexiconServiceTests {
             Instant.now());
 
 
-    @Mock private LexiconDao lexiconDao;
-    @Mock private BlobDao blobDao;
+    @MockitoBean private LexiconDao lexiconDao;
+    @MockitoBean private BlobDao blobDao;
 
     private LexiconService lexiconService;
 

@@ -1,12 +1,11 @@
 package com.gt.ssrs.reviewHistory;
 
+import com.gt.ssrs.auth.AuthenticatedUser;
 import com.gt.ssrs.delete.DeletionService;
 import com.gt.ssrs.model.WordReviewHistory;
 import com.gt.ssrs.reviewHistory.converter.ClientWordReviewHistoryConverter;
 import com.gt.ssrs.reviewHistory.model.ClientWordReviewHistory;
 import com.gt.ssrs.reviewSession.ScheduledReviewService;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,8 +31,8 @@ public class WordReviewHistoryController {
 
     @PostMapping(value = "/getWordReviewHistoryBatch", consumes = "application/json", produces = "application/json")
     public List<ClientWordReviewHistory> getLexiconWordHistoryBatch(@RequestBody GetLexiconReviewHistoryBatchRequest getLexiconWordHistoryBatchRequest,
-                                                                    @AuthenticationPrincipal UserDetails userDetails) {
-        return wordReviewHistoryService.getWordReviewHistory(getLexiconWordHistoryBatchRequest.lexiconId, userDetails.getUsername(), getLexiconWordHistoryBatchRequest.wordIds)
+                                                                    @AuthenticatedUser String username) {
+        return wordReviewHistoryService.getWordReviewHistory(getLexiconWordHistoryBatchRequest.lexiconId, username, getLexiconWordHistoryBatchRequest.wordIds)
                 .stream()
                 .map(wordReviewHistory -> ClientWordReviewHistoryConverter.convertWordReviewHistory(wordReviewHistory))
                 .collect(Collectors.toUnmodifiableList());
@@ -41,25 +40,25 @@ public class WordReviewHistoryController {
 
     @PostMapping(value = "/saveWordReviewHistoryBatch", consumes = "application/json", produces = "application/json")
     public void saveLexiconWordHistoryBatch(@RequestBody List<ClientWordReviewHistory> lexiconWordHistories,
-                                            @AuthenticationPrincipal UserDetails userDetails) {
+                                            @AuthenticatedUser String username) {
 
         List<WordReviewHistory> wordReviewHistoryToSave = lexiconWordHistories
                 .stream()
-                .map(clientWordReviewHistory -> ClientWordReviewHistoryConverter.convertClientWordReviewHistory(userDetails.getUsername(), clientWordReviewHistory))
+                .map(clientWordReviewHistory -> ClientWordReviewHistoryConverter.convertClientWordReviewHistory(username, clientWordReviewHistory))
                 .collect(Collectors.toUnmodifiableList());
 
-        List<WordReviewHistory> updatedHistory = wordReviewHistoryService.updateWordReviewHistoryBatch(userDetails.getUsername(), wordReviewHistoryToSave);
-        scheduledReviewService.scheduleReviewsForHistory(userDetails.getUsername(), updatedHistory);
+        List<WordReviewHistory> updatedHistory = wordReviewHistoryService.updateWordReviewHistoryBatch(username, wordReviewHistoryToSave);
+        scheduledReviewService.scheduleReviewsForHistory(username, updatedHistory);
     }
 
     @PostMapping(value = "/resetLearningHistory", consumes = "application/json", produces = "application/json")
     public void resetLearningHistory(@RequestBody ResetLearningHistoryRequest deleteLexiconReviewHistoryRequest,
-                                              @AuthenticationPrincipal UserDetails userDetails) {
-        deletionService.deleteUserWordTestHistory(userDetails.getUsername(), deleteLexiconReviewHistoryRequest.lexiconId, deleteLexiconReviewHistoryRequest.wordIds);
+                                     @AuthenticatedUser String username) {
+        deletionService.deleteUserWordTestHistory(username, deleteLexiconReviewHistoryRequest.lexiconId, deleteLexiconReviewHistoryRequest.wordIds);
 
         wordReviewHistoryService.resetLearningHistory(
                 deleteLexiconReviewHistoryRequest.lexiconId,
-                userDetails.getUsername(),
+                username,
                 deleteLexiconReviewHistoryRequest.wordIds);
     }
 

@@ -13,7 +13,7 @@ import com.gt.ssrs.model.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.Duration;
@@ -38,12 +38,12 @@ public class ReviewSessionServiceTests {
             "Test Lexicon description", TEST_LANGUAGE.getId(), "");
     private static final List<String> SIMILAR_ELEMENT_VALUES = List.of("A", "B", "C");
 
-    @Mock private ReviewEventDao reviewEventDao;
-    @Mock private ScheduledReviewDao scheduledReviewDao;
-    @Mock private LexiconService lexiconService;
-    @Mock private WordService wordService;
-    @Mock private ScheduledReviewService scheduledReviewService;
-    @Mock private WordReviewHelper wordReviewHelper;
+    @MockitoBean private ReviewEventDao reviewEventDao;
+    @MockitoBean private ScheduledReviewDao scheduledReviewDao;
+    @MockitoBean private LexiconService lexiconService;
+    @MockitoBean private WordService wordService;
+    @MockitoBean private ScheduledReviewService scheduledReviewService;
+    @MockitoBean private WordReviewHelper wordReviewHelper;
 
     private ReviewSessionService reviewSessionService;
 

@@ -59,8 +59,7 @@ public class AudioController {
         return audioService.getAudioFilesForWordBatch(wordIds);
     }
 
-
-    @PutMapping(value = "/saveAudio", produces = "text/plain")
+    @PostMapping(value = "/saveAudio", produces = "text/plain")
     public String SaveAudio(@RequestPart("wordId") String wordId,
                             @RequestPart(value = "file") MultipartFile file,
                             HttpServletResponse response) throws IOException {
@@ -74,7 +73,7 @@ public class AudioController {
         }
     }
 
-    @PutMapping(value = "/saveAudioBatch", produces = "application/json")
+    @PostMapping(value = "/saveAudioBatch", produces = "application/json")
     public Map<String, List<String>> SaveAudioMultiple(@RequestPart("wordIds") List<String> wordIds,
                                                        @RequestPart("files[]") MultipartFile[] files,
                                                        HttpServletResponse response) throws IOException {

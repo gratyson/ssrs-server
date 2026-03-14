@@ -1,7 +1,6 @@
 package com.gt.ssrs.userconfig;
 
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import com.gt.ssrs.auth.AuthenticatedUser;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -17,13 +16,13 @@ public class UserConfigController {
     }
 
     @GetMapping("getConfig")
-    public Map<String, String> getUserConfig(@AuthenticationPrincipal UserDetails userDetails) {
-        return userConfigService.getUserConfig(userDetails.getUsername());
+    public Map<String, String> getUserConfig(@AuthenticatedUser String username) {
+        return userConfigService.getUserConfig(username);
     }
 
     @PostMapping("setConfig")
     public void setUserConfig(@RequestBody Map<String, String> userConfig,
-                              @AuthenticationPrincipal UserDetails userDetails) {
-        userConfigService.saveUserConfig(userDetails.getUsername(), userConfig);
+                              @AuthenticatedUser String username) {
+        userConfigService.saveUserConfig(username, userConfig);
     }
 }

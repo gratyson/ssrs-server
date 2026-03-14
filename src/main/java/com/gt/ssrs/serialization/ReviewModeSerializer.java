@@ -1,17 +1,16 @@
 package com.gt.ssrs.serialization;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
 import com.gt.ssrs.model.ReviewMode;
 import org.springframework.stereotype.Component;
-
-import java.io.IOException;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueSerializer;
 
 @Component
-public class ReviewModeSerializer extends JsonSerializer<ReviewMode> {
+public class ReviewModeSerializer extends ValueSerializer<ReviewMode> {
     @Override
-    public void serialize(ReviewMode reviewMode, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+    public void serialize(ReviewMode reviewMode, JsonGenerator jsonGenerator, SerializationContext ctxt) throws JacksonException {
         jsonGenerator.writeNumber(reviewMode.getReviewModeId());
     }
 }

@@ -1,0 +1,478 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Stage:
+    Description: The stage to deploy (e.g. dev, prod, etc.)
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  UniqueId:
+    Description: A unique identifer to append to the name of global resources (s3, etc.)
+    Type: String
+  TemplateLocation:
+    Description: The S3 path to the folder containing the sub-templates to deploy (without a final '/')
+    Type: String
+
+Outputs:
+  RestEndpoint:
+    Description: API Gateway rest endpoint
+    Value: !Sub
+      - "https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/"
+      - ApiId: !Ref SsrsRestApi
+
+
+Resources:
+  SsrsImageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ssrs-image-${Stage}-${UniqueId}
+
+  SsrsAudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ssrs-audio-${Stage}-${UniqueId}
+
+  SsrsFrontendAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ssrs-frontend-assets-${Stage}-${UniqueId}
+      PublicAccessBlockConfiguration:
+        BlockPublicPolicy: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+  SsrsFrontendAssetsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SsrsFrontendAssetsBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action:
+              - s3:GetObject
+            Resource:
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-${Stage}-${UniqueId}/*
+
+
+  SsrsFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: SsrsFunctionRolePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ssrs-function-${Stage}:*
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DeleteItem
+                Resource:
+                  - !Sub ${LexiconMetadataTable.Arn}
+                  - !Sub ${LexiconMetadataTable.Arn}/index/*
+                  - !Sub ${WordsTable.Arn}
+                  - !Sub ${WordsTable.Arn}/index/*
+                  - !Sub ${WordReviewHistoryTable.Arn}
+                  - !Sub ${WordReviewHistoryTable.Arn}/index/*
+                  - !Sub ${ReviewEventTable.Arn}
+                  - !Sub ${ReviewEventTable.Arn}/index/*
+                  - !Sub ${ScheduledReviewTable.Arn}
+                  - !Sub ${ScheduledReviewTable.Arn}/index/*
+                  - !Sub ${UserConfigTable.Arn}
+                  - !Sub ${UserConfigTable.Arn}/index/*
+                  - !Sub ${UserNotepadTable.Arn}
+                  - !Sub ${UserNotepadTable.Arn}/index/*
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub ${SsrsImageBucket.Arn}
+                  - !Sub ${SsrsImageBucket.Arn}/*
+                  - !Sub ${SsrsAudioBucket.Arn}
+                  - !Sub ${SsrsAudioBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:AdminDisableUser
+                  - cognito-idp:AdminEnableUser
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminInitiateAuth
+                  - cognito-idp:AdminSetUserPassword
+                  - cognito-idp:DescribeUserPoolClient
+                Resource:
+                  - !GetAtt SsrsUserPool.Arn
+
+
+
+  SsrsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ssrs-function-${Stage}
+      Architectures:
+        - x86_64
+      Runtime: java21
+      Code:
+        S3Bucket: !Sub ssrs-deploy-${UniqueId}
+        S3Key: ssrs.zip
+      Handler: com.gt.ssrs.handler.aws.StreamLambdaHandler
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          MAIN_CLASS: com.gt.ssrs.app.aws.SsrsApplication
+          spring_profiles_active: !Sub ${Stage}
+          AWS_S3_IMAGEBUCKETNAME: !Ref SsrsImageBucket
+          AWS_S3_AUDIOBUCKETNAME: !Ref SsrsAudioBucket
+          AWS_COGNITO_CLIENTID: !Ref SsrsUserPoolClient
+          AWS_COGNITO_USERPOOLID: !GetAtt SsrsUserPool.UserPoolId
+      Role: !GetAtt SsrsFunctionRole.Arn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        SystemLogLevel: INFO
+
+
+
+  LexiconMetadataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: LexiconMetadata
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: owner
+          AttributeType: S
+        - AttributeName: title
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: LexiconMetadata-by-owner
+          Projection:
+            ProjectionType: ALL
+          KeySchema:
+            - AttributeName: owner
+              KeyType: HASH
+            - AttributeName: title
+              KeyType: RANGE
+
+  WordsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Words
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: lexiconId
+          AttributeType: S
+        - AttributeName: elements.kana
+          AttributeType: S
+        - AttributeName: elements.meaning
+          AttributeType: S
+        - AttributeName: elements.kanji
+          AttributeType: S
+        - AttributeName: createInstant
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: Words-by-create-instant
+          Projection:
+            ProjectionType: ALL
+          KeySchema:
+            - AttributeName: lexiconId
+              KeyType: HASH
+            - AttributeName: createInstant
+              KeyType: RANGE
+        - IndexName: Words-by-kana
+          Projection:
+            ProjectionType: KEYS_ONLY
+          KeySchema:
+            - AttributeName: lexiconId
+              KeyType: HASH
+            - AttributeName: elements.kana
+              KeyType: RANGE
+        - IndexName: Words-by-meaning
+          Projection:
+            ProjectionType: KEYS_ONLY
+          KeySchema:
+            - AttributeName: lexiconId
+              KeyType: HASH
+            - AttributeName: elements.meaning
+              KeyType: RANGE
+        - IndexName: Words-by-kanji
+          Projection:
+            ProjectionType: KEYS_ONLY
+          KeySchema:
+            - AttributeName: lexiconId
+              KeyType: HASH
+            - AttributeName: elements.kanji
+              KeyType: RANGE
+
+  WordReviewHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: WordReviewHistory
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: lexiconId
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+        - AttributeName: learned
+          AttributeType: S
+        - AttributeName: wordId
+          AttributeType: S
+        - AttributeName: createInstant
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: wordId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: WordReviewHistory-by-learned
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - wordId
+          KeySchema:
+            - AttributeName: lexiconId
+              KeyType: HASH
+            - AttributeName: username
+              KeyType: RANGE
+            - AttributeName: learned
+              KeyType: RANGE
+            - AttributeName: createInstant
+              KeyType: RANGE
+
+  ReviewEventTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ReviewEvents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: lexiconId
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: eventInstant
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: deleteAfterInstant
+        Enabled: true
+      GlobalSecondaryIndexes:
+        - IndexName: ReviewEvent-by-lexicon
+          Projection:
+            ProjectionType: ALL
+          KeySchema:
+            - AttributeName: lexiconId
+              KeyType: HASH
+            - AttributeName: username
+              KeyType: RANGE
+            - AttributeName: status
+              KeyType: RANGE
+            - AttributeName: eventInstant
+              KeyType: RANGE
+
+
+  ScheduledReviewTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ScheduledReviews
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: lexiconId
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: scheduledTestTime
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: deleteAfterInstant
+        Enabled: true
+      GlobalSecondaryIndexes:
+        - IndexName: ScheduledReview-by-lexicon
+          Projection:
+            ProjectionType: ALL
+          KeySchema:
+            - AttributeName: lexiconId
+              KeyType: HASH
+            - AttributeName: username
+              KeyType: RANGE
+            - AttributeName: status
+              KeyType: RANGE
+            - AttributeName: scheduledTestTime
+              KeyType: RANGE
+
+  UserConfigTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: UserConfig
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+
+  UserNotepadTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: UserNotepad
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: username
+          KeyType: HASH
+
+
+  SsrsRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: SSRS Lambda Proxy
+      BinaryMediaTypes:
+        - multipart/form-data
+        - application/octet-stream
+
+  SsrsFunctionPermissions:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt SsrsFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*/rest/*
+        - ApiId: !Ref SsrsRestApi
+
+  SsrsRestApiAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: SsrsAuthorizer
+      RestApiId: !Ref SsrsRestApi
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !GetAtt SsrsUserPool.Arn
+
+  SsrsRestEndpointsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://ssrs-deploy-${UniqueId}.s3.${AWS::Region}.amazonaws.com/cf-templates/ssrs-template-api.yaml
+      Parameters:
+        Stage: !Sub ${Stage}
+        SsrsRestApiId: !Ref SsrsRestApi
+        SsrsRestApiRootResourceId: !GetAtt SsrsRestApi.RootResourceId
+        SsrsFunctionArn: !GetAtt SsrsFunction.Arn
+        FrontendAssetBucketName: !Ref SsrsFrontendAssetsBucket
+        SsrsRestApiAuthorizerId: !Ref SsrsRestApiAuthorizer
+
+
+  SsrsRestApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: !Sub ${Stage}
+      RestApiId: !Ref SsrsRestApi
+      DeploymentId: !Ref SsrsRestApiDeployment
+
+  SsrsRestApiStageThrottleSettings:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      ApiStages:
+        - ApiId: !Ref SsrsRestApi
+          Stage: !Ref SsrsRestApiStage
+      Throttle:
+        BurstLimit: 100
+        RateLimit: 50
+
+  SsrsRestApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref SsrsRestApi
+    DependsOn: SsrsRestEndpointsStack
+
+
+  SsrsUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 6
+          RequireLowercase: true
+          RequireNumbers: false
+          RequireSymbols: false
+          RequireUppercase: false
+      UsernameConfiguration:
+        CaseSensitive: true
+      UserPoolName: !Sub ssrs-user-pool-${Stage}
+
+  SsrsUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !GetAtt SsrsUserPool.UserPoolId
+      GenerateSecret: true
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      IdTokenValidity: 86400
+      RefreshTokenValidity: 2592000
+      TokenValidityUnits:
+        IdToken: seconds
+        RefreshToken: seconds

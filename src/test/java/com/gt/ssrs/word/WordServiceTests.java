@@ -12,7 +12,7 @@ import com.gt.ssrs.reviewHistory.WordReviewHistoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.Instant;
@@ -63,11 +63,11 @@ public class WordServiceTests {
             Instant.EPOCH,
             Instant.now());
 
-    @Mock private LexiconService lexiconService;
-    @Mock private WordReviewHistoryService wordReviewHistoryService;
-    @Mock private AudioService audioService;
-    @Mock private WordDao wordDao;
-    @Mock private BlobDao blobDao;
+    @MockitoBean private LexiconService lexiconService;
+    @MockitoBean private WordReviewHistoryService wordReviewHistoryService;
+    @MockitoBean private AudioService audioService;
+    @MockitoBean private WordDao wordDao;
+    @MockitoBean private BlobDao blobDao;
 
     private WordService wordService;
 

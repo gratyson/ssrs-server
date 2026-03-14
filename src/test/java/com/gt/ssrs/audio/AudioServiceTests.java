@@ -7,7 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -40,8 +40,8 @@ public class AudioServiceTests {
 
     private AudioService audioService;
 
-    @Mock private WordDao wordDao;
-    @Mock private BlobDao blobDao;
+    @MockitoBean private WordDao wordDao;
+    @MockitoBean private BlobDao blobDao;
 
     private Map<String, List<String>> mockSavedAudioFiles = new HashMap<>();
     private List<String> failedSaveToWords = new ArrayList<>();

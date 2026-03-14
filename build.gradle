@@ -1,7 +1,7 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.2.1'
-	id 'io.spring.dependency-management' version '1.1.4'
+	id 'org.springframework.boot' version '4.0.3'
+	id 'io.spring.dependency-management' version '1.1.7'
 	id 'jacoco'
 }
 
@@ -9,7 +9,7 @@ group = 'com.gt'
 version = '1.0'
 
 java {
-	sourceCompatibility = '17'
+	sourceCompatibility = '21'
 }
 
 repositories {
@@ -19,17 +19,72 @@ repositories {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
-	implementation 'org.springframework.boot:spring-boot-starter-security'
-
-	implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
-	implementation 'io.jsonwebtoken:jjwt-impl:0.11.5'
-	implementation 'io.jsonwebtoken:jjwt-jackson:0.11.5'
-
-	implementation 'org.postgresql:postgresql'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.kordamp.gradle:jacoco-gradle-plugin:0.47.0'
+
+	if (!project.hasProperty('build-aws')) {
+		implementation 'org.springframework.boot:spring-boot-starter-security'  // Security is configured on API Gateway if running within AWS
+
+		implementation platform('io.jsonwebtoken:jjwt-bom:0.13.0')
+		implementation 'io.jsonwebtoken:jjwt-api'
+		implementation 'io.jsonwebtoken:jjwt-impl'
+		implementation 'io.jsonwebtoken:jjwt-jackson'
+	}
+
+	if (!project.hasProperty('build-aws') && !project.hasProperty('build-aws-local')) {
+		implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+		implementation 'org.postgresql:postgresql'
+	}
+
+	// AWS dependencies could be excluded if property 'build-aws' is not set. However, this
+	// also means they won't be available in the IDE. Since running locally doesn't have the
+	// same issues with cold-start times as Lambda, it should be fine to leave them in.
+	implementation platform('software.amazon.awssdk:bom:2.41.14')
+	implementation 'software.amazon.awssdk:s3'
+	implementation 'software.amazon.awssdk:dynamodb'
+	implementation 'software.amazon.awssdk:dynamodb-enhanced'
+	implementation 'software.amazon.awssdk:cognitoidentity'
+	implementation 'software.amazon.awssdk:cognitoidentityprovider'
+
+	implementation 'com.amazonaws:aws-lambda-java-core:1.2.1'
+	implementation 'com.amazonaws:aws-lambda-java-events:3.1.1'
+	implementation 'com.amazonaws.serverless:aws-serverless-java-container-springboot4:3.0.0'
+
+	testImplementation 'com.amazonaws:DynamoDBLocal:2.6.1'
+}
+
+def applyExcludes(sourceSet) {
+	if (project.hasProperty('build-aws-local')) {
+		sourceSet.exclude 'com/gt/ssrs/*/pg/*'
+	} else if (project.hasProperty('build-aws')) {
+		sourceSet.exclude 'com/gt/ssrs/*/pg/*'
+		sourceSet.exclude 'com/gt/ssrs/*/awslocal/*'
+		sourceSet.exclude 'com/gt/ssrs/controller/WebController.java'
+	} else {
+		sourceSet.exclude 'com/gt/ssrs/*/aws/*'
+		sourceSet.exclude 'com/gt/ssrs/*/awslocal/*'
+	}
+}
+
+sourceSets {
+	main {
+		java {
+			applyExcludes(delegate)
+		}
+	}
+	test {
+		java {
+			applyExcludes(delegate)
+		}
+	}
+}
+
+tasks.register('packageJar', Zip) {
+	into('lib') {
+		from(jar)
+		from(configurations.runtimeClasspath)
+	}
 }
 
 tasks.named('test') {

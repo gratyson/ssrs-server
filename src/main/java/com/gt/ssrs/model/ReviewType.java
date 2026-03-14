@@ -1,6 +1,6 @@
 package com.gt.ssrs.model;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.annotation.JsonSerialize;
 import com.gt.ssrs.serialization.ReviewTypeSerializer;
 
 @JsonSerialize(using = ReviewTypeSerializer.class, as = Integer.class)
