@@ -32,8 +32,10 @@ Resources:
             Resource:
               - !Sub arn:aws:s3:::ssrs-deploy-${UniqueId}
               - !Sub arn:aws:s3:::ssrs-deploy-${UniqueId}/*
-              - !Sub arn:aws:s3:::ssrs-frontend-assets-${UniqueId}
-              - !Sub arn:aws:s3:::ssrs-frontend-assets-${UniqueId}/*
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-dev-${UniqueId}
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-dev-${UniqueId}/*
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-prod-${UniqueId}
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-prod-${UniqueId}/*
           - Effect: Allow
             Action:
               - s3:CreateBucket

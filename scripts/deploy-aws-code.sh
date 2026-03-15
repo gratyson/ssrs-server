@@ -5,7 +5,7 @@ source $SCRIPT_DIR/init-context-aws.sh
 
 cd $SSRS_CLIENT_DIR
 
-if aws --profile $CODE_DEPLOY_PROFILE_NAME cloudformation describe-stacks --stack-name=ssrs-resources-${Stage} > /dev/null 2>&1; then
+if aws --profile $CODE_DEPLOY_PROFILE_NAME cloudformation describe-stacks --stack-name=ssrs-resources-$STAGE > /dev/null 2>&1; then
   if [ $STAGE == "dev" ]; then
     # S3 deploy always uses environment.ts, so copy over the dev settings if the deploying the dev stage
     BACKUP_CONFIG_FILE_NAME=$SSRS_CLIENT_DIR/src/environments/environment.ts.backup
@@ -23,7 +23,7 @@ if aws --profile $CODE_DEPLOY_PROFILE_NAME cloudformation describe-stacks --stac
     rm $BACKUP_CONFIG_FILE_NAME
   fi
 else
-  echo "Unable to retrieve API gateway rest endpoint. Skipping client deploy."
+  echo "Unable to find CloudFormation stack. Skipping client deploy."
 fi
 
 cd $SSRS_SERVER_DIR
