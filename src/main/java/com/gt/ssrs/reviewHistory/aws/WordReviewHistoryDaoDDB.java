@@ -3,6 +3,7 @@ package com.gt.ssrs.reviewHistory.aws;
 import com.gt.ssrs.model.WordReviewHistory;
 import com.gt.ssrs.reviewHistory.WordReviewHistoryDao;
 import com.gt.ssrs.reviewHistory.model.LearnedStatus;
+import com.gt.ssrs.util.ListUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,14 +47,15 @@ public class WordReviewHistoryDaoDDB implements WordReviewHistoryDao {
     public List<WordReviewHistory> createWordReviewHistory(String username, List<WordReviewHistory> wordReviewHistories) {
         List<WordReviewHistory> updatedWordReviewHistory = new ArrayList<>();
 
-        for(int offset = 0; offset < wordReviewHistories.size(); offset += maxWriteBatchSize) {
-            updatedWordReviewHistory.addAll(createWordReviewHistoryBatch(username, wordReviewHistories.subList(offset, Math.min(wordReviewHistories.size(), offset + maxWriteBatchSize))));
+        for (List<WordReviewHistory> subList : ListUtil.partitionList(wordReviewHistories, maxWriteBatchSize)) {
+            updatedWordReviewHistory.addAll(createWordReviewHistoryBatch(username, subList));
         }
 
         return updatedWordReviewHistory;
     }
 
-    public List<WordReviewHistory> createWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistories) {
+
+    private List<WordReviewHistory> createWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistories) {
         WriteBatch.Builder<DDBWordReviewHistory> batchBuilder = WriteBatch.builder(DDBWordReviewHistory.class).mappedTableResource(wordReviewHistoryTable);
         Instant createInstant = Instant.now();
 
@@ -78,14 +80,14 @@ public class WordReviewHistoryDaoDDB implements WordReviewHistoryDao {
     public List<WordReviewHistory> updateWordReviewHistory(String username, List<WordReviewHistory> wordReviewHistoriesToUpdate) {
         List<WordReviewHistory> updatedWordReviewHistory = new ArrayList<>();
 
-        for(int offset = 0; offset < wordReviewHistoriesToUpdate.size(); offset += maxWriteBatchSize) {
-            updatedWordReviewHistory.addAll(updateWordReviewHistoryBatch(username, wordReviewHistoriesToUpdate.subList(offset, Math.min(wordReviewHistoriesToUpdate.size(), offset + maxWriteBatchSize))));
+        for (List<WordReviewHistory> subList : ListUtil.partitionList(wordReviewHistoriesToUpdate, maxWriteBatchSize)) {
+            updatedWordReviewHistory.addAll(updateWordReviewHistoryBatch(username, subList));
         }
 
         return updatedWordReviewHistory;
     }
 
-    public List<WordReviewHistory> updateWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistoriesToUpdate) {
+    private List<WordReviewHistory> updateWordReviewHistoryBatch(String username, List<WordReviewHistory> wordReviewHistoriesToUpdate) {
         List<WordReviewHistory> savedWordReviewHistories = new ArrayList<>();
 
         Map<String, List<String>> wordIdsByLexiconId = wordReviewHistoriesToUpdate

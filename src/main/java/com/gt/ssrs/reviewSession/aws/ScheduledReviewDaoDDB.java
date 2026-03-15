@@ -3,6 +3,7 @@ package com.gt.ssrs.reviewSession.aws;
 import com.gt.ssrs.model.ScheduledReview;
 import com.gt.ssrs.reviewSession.ScheduledReviewDao;
 import com.gt.ssrs.reviewSession.model.ScheduledReviewStatus;
+import com.gt.ssrs.util.ListUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,28 +28,33 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
     private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final int deleteAfterDays;
+    private final int maxWriteBatchSize;
 
     private final DynamoDbTable<DDBScheduledReview> scheduledReviewTable;
 
     @Autowired
     public ScheduledReviewDaoDDB(DynamoDbClient dynamoDbClient,
                                  DynamoDbEnhancedClient dynamoDbEnhancedClient,
-                                 @Value("${aws.dynamodb.reviews.deleteAfterDays}") int deleteAfterDays) {
+                                 @Value("${aws.dynamodb.reviews.deleteAfterDays}") int deleteAfterDays,
+                                 @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize) {
         this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
         this.deleteAfterDays = deleteAfterDays;
+        this.maxWriteBatchSize = maxWriteBatchSize;
 
         scheduledReviewTable = dynamoDbEnhancedClient.table(DDBScheduledReview.TABLE_NAME, TableSchema.fromImmutableClass(DDBScheduledReview.class));
     }
 
     @Override
     public void createScheduledReviewsBatch(List<ScheduledReview> scheduledReviews) {
-        WriteBatch.Builder<DDBScheduledReview> batchBuilder = WriteBatch.builder(DDBScheduledReview.class).mappedTableResource(scheduledReviewTable);
-        scheduledReviews.forEach(scheduledReview -> batchBuilder.addPutItem(DDBScheduledReviewConverter.convertScheduledReview(scheduledReview)));
+        for (List<ScheduledReview> subList : ListUtil.partitionList(scheduledReviews, maxWriteBatchSize)) {
+            WriteBatch.Builder<DDBScheduledReview> batchBuilder = WriteBatch.builder(DDBScheduledReview.class).mappedTableResource(scheduledReviewTable);
+            subList.forEach(scheduledReview -> batchBuilder.addPutItem(DDBScheduledReviewConverter.convertScheduledReview(scheduledReview)));
 
-        dynamoDbEnhancedClient.batchWriteItem(b -> b.writeBatches(batchBuilder.build()));
+            dynamoDbEnhancedClient.batchWriteItem(b -> b.writeBatches(batchBuilder.build()));
 
-        // TODO: Handle unprocessed items?
+            // TODO: Handle unprocessed items?
+        }
     }
 
     @Override
@@ -166,11 +172,15 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
                         .build())
                 .collect(Collectors.toUnmodifiableList());
 
-        WriteBatch.Builder<DDBScheduledReview> batchBuilder = WriteBatch.builder(DDBScheduledReview.class).mappedTableResource(scheduledReviewTable);
-        reviewsToSave.forEach(ddbScheduledReview -> batchBuilder.addPutItem(ddbScheduledReview));
+        int processedCnt = 0;
+        for (List<DDBScheduledReview> subList : ListUtil.partitionList(reviewsToSave, maxWriteBatchSize)) {
+            WriteBatch.Builder<DDBScheduledReview> batchBuilder = WriteBatch.builder(DDBScheduledReview.class).mappedTableResource(scheduledReviewTable);
+            subList.forEach(ddbScheduledReview -> batchBuilder.addPutItem(ddbScheduledReview));
 
-        BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(b -> b.writeBatches(batchBuilder.build()));
-        return reviewsToSave.size() - result.unprocessedPutItemsForTable(scheduledReviewTable).size();
+            BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(b -> b.writeBatches(batchBuilder.build()));
+            processedCnt += reviewsToSave.size() - result.unprocessedPutItemsForTable(scheduledReviewTable).size();
+        }
+        return processedCnt;
     }
 
     @Override

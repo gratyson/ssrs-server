@@ -3,12 +3,14 @@ package com.gt.ssrs.word.aws;
 import com.gt.ssrs.exception.DaoException;
 import com.gt.ssrs.language.Language;
 import com.gt.ssrs.language.WordElement;
+import com.gt.ssrs.util.ListUtil;
 import com.gt.ssrs.word.WordDao;
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordFilterOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.enhanced.dynamodb.*;
@@ -29,13 +31,17 @@ public class WordDaoDDB implements WordDao {
 
     private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final int maxWriteBatchSize;
 
     private final DynamoDbTable<DDBWord> wordTable;
 
     @Autowired
-    public WordDaoDDB(DynamoDbClient dynamoDbClient, DynamoDbEnhancedClient dynamoDbEnhancedClient) {
+    public WordDaoDDB(DynamoDbClient dynamoDbClient,
+                      DynamoDbEnhancedClient dynamoDbEnhancedClient,
+                      @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize) {
         this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
+        this.maxWriteBatchSize = maxWriteBatchSize;
 
         this.wordTable = dynamoDbEnhancedClient.table(DDBWord.TABLE_NAME, TableSchema.fromImmutableClass(DDBWord.class));
     }
@@ -70,6 +76,16 @@ public class WordDaoDDB implements WordDao {
 
     @Override
     public List<Word> createWords(Language language, String lexiconId, List<Word> words) {
+        List<Word> createdWords = new ArrayList<>();
+
+        for (List<Word> subList : ListUtil.partitionList(words, maxWriteBatchSize)) {
+            createdWords.addAll(createWordsBatch(language, lexiconId, subList));
+        }
+
+        return createdWords;
+    }
+
+    private List<Word> createWordsBatch(Language language, String lexiconId, List<Word> words) {
         WriteBatch.Builder<DDBWord> batchBuilder = WriteBatch.builder(DDBWord.class).mappedTableResource(wordTable);
         DDBWordConverter.convertWordBatch(words).forEach(wordDDB -> batchBuilder.addPutItem(wordDDB));
 

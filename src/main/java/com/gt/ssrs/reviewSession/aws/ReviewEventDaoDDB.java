@@ -3,6 +3,7 @@ package com.gt.ssrs.reviewSession.aws;
 import com.gt.ssrs.reviewSession.ReviewEventDao;
 import com.gt.ssrs.model.ReviewEvent;
 import com.gt.ssrs.reviewSession.model.ReviewEventStatus;
+import com.gt.ssrs.util.ListUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,16 +28,19 @@ public class ReviewEventDaoDDB implements ReviewEventDao {
     private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final int deleteAfterDays;
+    private final int maxWriteBatchSize;
 
     private final DynamoDbTable<DDBReviewEvent> reviewEventsTable;
 
     @Autowired
     public ReviewEventDaoDDB(DynamoDbClient dynamoDbClient,
                              DynamoDbEnhancedClient dynamoDbEnhancedClient,
-                             @Value("${aws.dynamodb.reviews.deleteAfterDays}") int deleteAfterDays) {
+                             @Value("${aws.dynamodb.reviews.deleteAfterDays}") int deleteAfterDays,
+                             @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize) {
         this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
         this.deleteAfterDays = deleteAfterDays;
+        this.maxWriteBatchSize = maxWriteBatchSize;
 
         reviewEventsTable = dynamoDbEnhancedClient.table(DDBReviewEvent.TABLE_NAME, TableSchema.fromImmutableClass(DDBReviewEvent.class));
     }
@@ -73,6 +77,16 @@ public class ReviewEventDaoDDB implements ReviewEventDao {
 
     @Override
     public List<String> markEventsAsProcessed(List<ReviewEvent> events) {
+        List<String> processEvents = new ArrayList<>();
+
+        for (List<ReviewEvent> subList : ListUtil.partitionList(events, maxWriteBatchSize)) {
+            processEvents.addAll(markEventsAsProcessedBatch(subList));
+        }
+
+        return processEvents;
+    }
+
+    private List<String> markEventsAsProcessedBatch(List<ReviewEvent> events) {
         Instant deleteAfterInstant = Instant.now().plus(Duration.ofDays(deleteAfterDays));
         WriteBatch.Builder<DDBReviewEvent> batchBuilder = WriteBatch.builder(DDBReviewEvent.class).mappedTableResource(reviewEventsTable);
         events.forEach(reviewEvent -> batchBuilder.addPutItem(DDBReviewEventConverter.convertReviewEvent(reviewEvent, true, deleteAfterInstant)));

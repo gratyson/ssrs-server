@@ -94,9 +94,11 @@ public class LexiconController {
     }
 
     @PostMapping(value = "/deleteLexicon")
-    public void deleteLexicon(@RequestBody String lexiconId,
+    public boolean deleteLexicon(@RequestBody String lexiconId,
                               @AuthenticatedUser String username) {
         deletionService.deleteLexicon(username, lexiconId);
+
+        return true;
     }
 
     @GetMapping(value = "/word", produces = "application/json")
