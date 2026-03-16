@@ -62,6 +62,6 @@ public class WordReviewHistoryController {
                 deleteLexiconReviewHistoryRequest.wordIds);
     }
 
-    private record GetLexiconReviewHistoryBatchRequest(String lexiconId, Collection<String> wordIds) { }
-    private record ResetLearningHistoryRequest(String lexiconId, Collection<String> wordIds) { }
+    public record GetLexiconReviewHistoryBatchRequest(String lexiconId, Collection<String> wordIds) { }
+    public record ResetLearningHistoryRequest(String lexiconId, Collection<String> wordIds) { }
 }

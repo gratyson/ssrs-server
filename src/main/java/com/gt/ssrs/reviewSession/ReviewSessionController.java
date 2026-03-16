@@ -78,9 +78,9 @@ public class ReviewSessionController {
         return reviewEventProcessor.getLexiconReviewSummary(lexiconId, username, futureEventCutoff);
     }
 
-    private record GenerateLearningSessionRequest(String lexiconId, int wordCnt) { }
-    private record GenerateReviewSessionRequest(String lexiconId, String testRelationship, int maxWordCnt, Optional<Instant> cutoff) { }
-    private record AdjustNextReviewTimesRequest(String lexiconId, Duration adjustment) { }
+    public record GenerateLearningSessionRequest(String lexiconId, int wordCnt) { }
+    public record GenerateReviewSessionRequest(String lexiconId, String testRelationship, int maxWordCnt, Optional<Instant> cutoff) { }
+    public record AdjustNextReviewTimesRequest(String lexiconId, Duration adjustment) { }
 }
 
 

@@ -29,6 +29,7 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final int deleteAfterDays;
     private final int maxWriteBatchSize;
+    private final int maxReadBatchSize;
 
     private final DynamoDbTable<DDBScheduledReview> scheduledReviewTable;
 
@@ -36,11 +37,13 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
     public ScheduledReviewDaoDDB(DynamoDbClient dynamoDbClient,
                                  DynamoDbEnhancedClient dynamoDbEnhancedClient,
                                  @Value("${aws.dynamodb.reviews.deleteAfterDays}") int deleteAfterDays,
-                                 @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize) {
+                                 @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize,
+                                 @Value("${aws.dynamodb.maxReadBatchSize}") int maxReadBatchSize) {
         this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
         this.deleteAfterDays = deleteAfterDays;
         this.maxWriteBatchSize = maxWriteBatchSize;
+        this.maxReadBatchSize = maxReadBatchSize;
 
         scheduledReviewTable = dynamoDbEnhancedClient.table(DDBScheduledReview.TABLE_NAME, TableSchema.fromImmutableClass(DDBScheduledReview.class));
     }
@@ -108,6 +111,16 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
 
     @Override
     public List<ScheduledReview> loadScheduledReviewsForWords(String username, String lexiconId, Collection<String> wordIds) {
+        List<ScheduledReview> scheduledReviews = new ArrayList<>();
+
+        for (List<String> wordIdBatch : ListUtil.partitionList(List.copyOf(wordIds), maxReadBatchSize)) {
+            scheduledReviews.addAll(loadScheduledReviewsForWordsBatch(username, lexiconId, wordIdBatch));
+        }
+
+        return scheduledReviews;
+    }
+
+    public List<ScheduledReview> loadScheduledReviewsForWordsBatch(String username, String lexiconId, Collection<String> wordIds) {
         QueryEnhancedRequest request = QueryEnhancedRequest.builder()
                 .queryConditional(QueryConditional.sortGreaterThan(Key.builder()
                         .partitionValue(lexiconId)

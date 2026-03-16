@@ -30,6 +30,7 @@ public class CognitoFilter extends OncePerRequestFilter {
 
     private static final String AUTHORIZATION_HEADER_NAME = "Authorization";
     private static final String JWT_CLAIMS_USERNAME = "username";
+    private static final String JWT_CLAIMS_USERID = "sub";
     private static final String JWT_HEADER_KEY_ID = "kid";
     private static final String JWT_HEADER_KEY_ALGORITHM = "alg";
 
@@ -46,7 +47,7 @@ public class CognitoFilter extends OncePerRequestFilter {
 
         if (idToken != null && !idToken.isBlank()) {
             Claims claims = extractClaims(idToken);
-            Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(claims.get(JWT_CLAIMS_USERNAME).toString(), "", List.of());
+            Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(claims.get(JWT_CLAIMS_USERID).toString(), "", List.of());
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 

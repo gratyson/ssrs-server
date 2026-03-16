@@ -13,9 +13,11 @@ public class DDBWord {
     public static final String TABLE_NAME = "Words";
 
     public static final String CREATE_INSTANT_INDEX_NAME = TABLE_NAME + "-by-create-instant";
-    public static final String KANA_INDEX_NAME = TABLE_NAME + "-by-kana";
-    public static final String KANJI_INDEX_NAME = TABLE_NAME + "-by-kanji";
-    public static final String MEANING_INDEX_NAME = TABLE_NAME + "-by-meaning";
+
+    public static final String ELEMENT_INDEX_NAME_PREFIX = TABLE_NAME + "-by-";
+    public static final String KANA_INDEX_NAME = ELEMENT_INDEX_NAME_PREFIX + "kana";
+    public static final String KANJI_INDEX_NAME = ELEMENT_INDEX_NAME_PREFIX + "kanji";
+    public static final String MEANING_INDEX_NAME = ELEMENT_INDEX_NAME_PREFIX + "meaning";
 
     public static final String ID_ATTRIBUTE_NAME = "id";
     public static final String LEXICON_ID_ATTRIBUTE_NAME = "lexiconId";

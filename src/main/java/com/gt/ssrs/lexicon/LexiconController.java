@@ -148,9 +148,9 @@ public class LexiconController {
                 getLexiconWordsBatchRequest.filters());
     }
 
-    private record SaveWordsRequest(String lexiconId, List<Word> words) { }
-    private record DeleteWordsRequest(String lexiconId, List<String> wordIds) { }
-    private record GetLexiconWordsBatchRequest(String lexiconId, int count, int offset, Word lastWord, WordFilterOptions filters) { }
-    private record LexiconMetadataAndScheduledCounts(LexiconMetadata lexiconMetadata, Map<String, Integer> scheduledReviewCounts, boolean hasWordsToLearn) { }
+    public record SaveWordsRequest(String lexiconId, List<Word> words) { }
+    public record DeleteWordsRequest(String lexiconId, List<String> wordIds) { }
+    public record GetLexiconWordsBatchRequest(String lexiconId, int count, int offset, Word lastWord, WordFilterOptions filters) { }
+    public record LexiconMetadataAndScheduledCounts(LexiconMetadata lexiconMetadata, Map<String, Integer> scheduledReviewCounts, boolean hasWordsToLearn) { }
 
 }

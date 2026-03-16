@@ -76,7 +76,7 @@ public class AudioController {
     @PostMapping(value = "/saveAudioBatch", produces = "application/json")
     public Map<String, List<String>> SaveAudioMultiple(@RequestPart("wordIds") List<String> wordIds,
                                                        @RequestPart("files[]") MultipartFile[] files,
-                                                       HttpServletResponse response) throws IOException {
+                                                       HttpServletResponse response) {
         if(wordIds == null || files == null || wordIds.size() != files.length) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             return null;
@@ -103,6 +103,6 @@ public class AudioController {
         }
     }
 
-    private record DeleteRequest(String wordId, String audioFileName) { }
-    private record DeleteResponse(String fileDeleted) { }
+    public record DeleteRequest(String wordId, String audioFileName) { }
+    public record DeleteResponse(String fileDeleted) { }
 }

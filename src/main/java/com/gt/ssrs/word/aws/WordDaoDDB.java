@@ -29,6 +29,10 @@ public class WordDaoDDB implements WordDao {
 
     private static final String MAX_ISO_DATE_STR = "9999-12-31T23:59:59.999999999Z";
 
+    private static final int ELEMENT_FILTER_LIMIT_MULTIPLER = 12;
+    private static final int ATTRIBUTE_FILTER_LIMIT_MULTIPLER = 4;
+    private static final int AUDIO_FILTER_LIMIT_MULTIPLER = 2;
+
     private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final int maxWriteBatchSize;
@@ -151,7 +155,19 @@ public class WordDaoDDB implements WordDao {
 
     @Override
     public void deleteAllLexiconWords(String lexiconId) {
-        // TODO
+        QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional
+                        .keyEqualTo(b -> b.partitionValue(lexiconId)))
+                .attributesToProject(DDBWord.ID_ATTRIBUTE_NAME)
+                .build();
+
+        SdkIterable<Page<DDBWord>> responseIterable = wordTable.index(DDBWord.CREATE_INSTANT_INDEX_NAME).query(request);
+
+        for (Page<DDBWord> ddbWordPage : responseIterable) {
+            for (DDBWord ddbWord : ddbWordPage.items()) {
+                wordTable.deleteItem(Key.builder().partitionValue(ddbWord.id()).build());
+            }
+        }
     }
 
     @Override
@@ -164,6 +180,7 @@ public class WordDaoDDB implements WordDao {
         String sortStartDate = lastWord == null ? MAX_ISO_DATE_STR : lastWord.createInstant().toString();
 
         QueryEnhancedRequest.Builder requestBuilder = QueryEnhancedRequest.builder()
+                .limit(count * getLimitMultipler(wordFilterOptions))
                 .scanIndexForward(false);
 
         if (lastWord == null || lastWord.createInstant() == null) {
@@ -185,6 +202,7 @@ public class WordDaoDDB implements WordDao {
 
         SdkIterable<Page<DDBWord>> results = wordTable.index(DDBWord.CREATE_INSTANT_INDEX_NAME).query(requestBuilder.build());
 
+        int totalScanned = 0;
         List<Word> wordsToReturn = new ArrayList<>();
         for (Page<DDBWord> page : results) {
             wordsToReturn.addAll(page.items()
@@ -192,7 +210,7 @@ public class WordDaoDDB implements WordDao {
                     .map(ddbWord -> DDBWordConverter.convertDDBWord(ddbWord))
                     .collect(Collectors.toUnmodifiableList()));
 
-            if (wordsToReturn.size() > count) {
+            if (wordsToReturn.size() >= count) {
                 break;
             }
         }
@@ -326,14 +344,6 @@ public class WordDaoDDB implements WordDao {
                 .collect(Collectors.toUnmodifiableList());
     }
 
-    private Expression buildOwnedByUserFilterExpression(String username) {
-        return Expression.builder()
-                .expression("#owner = :username")
-                .expressionNames(Map.of("#owner", "owner"))
-                .expressionValues(Map.of(":username", AttributeValue.builder().s(username).build()))
-                .build();
-    }
-
     private Expression buildFilterFromOptions(WordFilterOptions options) {
         String expression = "";
         Map<String, String> expressionNames = new HashMap<>();
@@ -347,10 +357,12 @@ public class WordDaoDDB implements WordDao {
 
         if (options.elements() != null && !options.elements().isEmpty()) {
             for (Map.Entry<String, String> elementEntry : options.elements().entrySet()) {
-                String elementName = "element." + elementEntry.getKey();
-                expression += (!expression.isEmpty() ? " AND " : "") + "contains(#" + elementName + ", :" + elementName + ")";
-                expressionNames.put("#" + elementName, DDBWord.ELEMENTS_ATTRIBUTE_NAME + "." + elementEntry.getKey());
-                expressionValues.put(":" + elementName, AttributeValue.builder().s(elementEntry.getValue()).build());
+                if (elementEntry.getValue() != null && !elementEntry.getValue().isBlank()) {
+                    String elementName = "element_" + elementEntry.getKey();
+                    expression += (!expression.isEmpty() ? " AND " : "") + "begins_with (#elements." + elementEntry.getKey() + ", :" + elementName + ")";
+                    expressionNames.put("#elements", DDBWord.ELEMENTS_ATTRIBUTE_NAME);
+                    expressionValues.put(":" + elementName, AttributeValue.builder().s(elementEntry.getValue()).build());
+                }
             }
         }
 
@@ -359,7 +371,11 @@ public class WordDaoDDB implements WordDao {
                 expression += " AND ";
             }
 
-            expression += "(attribute_not_exists(#audioFiles) OR size(#audioFiles) = :zero)";
+            if (options.hasAudio()) {
+                expression += ("size(#audioFiles) > :zero");
+            } else {
+                expression += "(attribute_not_exists(#audioFiles) OR size(#audioFiles) = :zero)";
+            }
             expressionNames.put("#audioFiles", DDBWord.AUDIO_FILES_ATTRIBUTE_NAME);
             expressionValues.put(":zero", AttributeValue.builder().n("0").build());
         }
@@ -373,5 +389,31 @@ public class WordDaoDDB implements WordDao {
                 .expressionNames(expressionNames)
                 .expressionValues(expressionValues)
                 .build();
+    }
+
+    // For non-filtered searches, the limit is set to the exact number that needs to be returned. For filtered searches,
+    // using a limit set to the desired results will drastically slow down the search as the limit is applied before
+    // and filters, so it's likely that a large number of calls to Dynamo simply return an empty set. This function
+    // returns a heuristic value for how that limit should be modified based on which filters are used.
+    private int getLimitMultipler(WordFilterOptions options) {
+        if (options != null) {
+            if (options.elements() != null && !options.elements().isEmpty()) {
+                for (String elementValue : options.elements().values()) {
+                    if (elementValue != null && !elementValue.isBlank()) {
+                        return ELEMENT_FILTER_LIMIT_MULTIPLER;
+                    }
+                }
+            }
+
+            if (options.attributes() != null && !options.attributes().isBlank()) {
+                return ATTRIBUTE_FILTER_LIMIT_MULTIPLER;
+            }
+
+            if (options.hasAudio() != null) {
+                return AUDIO_FILTER_LIMIT_MULTIPLER;
+            }
+        }
+
+        return 1;
     }
 }

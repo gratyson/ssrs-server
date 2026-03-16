@@ -140,12 +140,12 @@ public class AuthController {
         return "";
     }
 
-    private record LoginRequest(String username, String password) { }
-    private record LoginResponse(boolean success, String errMsg) { }
+    public record LoginRequest(String username, String password) { }
+    public record LoginResponse(boolean success, String errMsg) { }
 
-    private record RegisterRequest(String username, String password, String reenterPassword) { }
-    private record RegisterResponse(boolean success, String errMsg) { }
+    public record RegisterRequest(String username, String password, String reenterPassword) { }
+    public record RegisterResponse(boolean success, String errMsg) { }
 
-    private record ChangePasswordRequest(String username, String oldPassword, String newPassword, String reenterNewPassword) { }
-    private record ChangePasswordResponse(boolean success, String errMsg) { }
+    public record ChangePasswordRequest(String username, String oldPassword, String newPassword, String reenterNewPassword) { }
+    public record ChangePasswordResponse(boolean success, String errMsg) { }
 }
