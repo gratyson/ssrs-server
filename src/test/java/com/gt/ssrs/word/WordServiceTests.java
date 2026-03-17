@@ -76,6 +76,8 @@ public class WordServiceTests {
         wordService = new WordService(lexiconService, wordReviewHistoryService, audioService, wordDao, blobDao);
 
         when(lexiconService.getLexiconMetadata(TEST_LEXICON_METADATA.id())).thenReturn(TEST_LEXICON_METADATA);
+        when(lexiconService.getLexiconLanguageId(TEST_LEXICON_METADATA.id())).thenReturn(TEST_LANGUAGE.getId());
+        when(lexiconService.getAllLexiconMetadata(TEST_USERNAME)).thenReturn(List.of(TEST_LEXICON_METADATA));
 
         when(wordDao.loadWord(TEST_WORD_1.id())).thenReturn(TEST_WORD_1);
         when(wordDao.loadWords(List.of(TEST_WORD_1.id()))).thenReturn(List.of(TEST_WORD_1));
@@ -107,7 +109,7 @@ public class WordServiceTests {
                 updatedWordWithoutUsername.elements(), updatedWordWithoutUsername.attributes(),
                 updatedWordWithoutUsername.audioFiles(), TEST_WORD_1.createInstant(), TEST_WORD_1.updateInstant());
 
-        when(wordDao.updateWord(expectedWord)).thenReturn(1);
+        when(wordDao.updateWord(TEST_LANGUAGE, expectedWord)).thenReturn(1);
 
         assertEquals(expectedWord, wordService.updateWord(updatedWordWithoutUsername, TEST_USERNAME));
     }
@@ -141,7 +143,7 @@ public class WordServiceTests {
 
         Word expectedWord = withOwner(updatedWordWithoutUsername);
 
-        when(wordDao.updateWord(expectedWord)).thenReturn(0);
+        when(wordDao.updateWord(TEST_LANGUAGE, expectedWord)).thenReturn(0);
 
         assertNull(wordService.updateWord(updatedWordWithoutUsername, TEST_USERNAME));
     }
@@ -162,7 +164,7 @@ public class WordServiceTests {
         Word wordNoIdNoDuplicate = new Word(null, TEST_LEXICON_METADATA.id(), "", Map.of("kana", "d", "meaning", "d"), "d", List.of("d.mp3"), Instant.EPOCH, Instant.now());
         Word wordNoIdWithDuplicate = new Word("", TEST_LEXICON_METADATA.id(), "", Map.of("kana", "e", "meaning", "e"), "e", List.of("e.mp3"), Instant.EPOCH, Instant.now());
         Word duplicateWord = new Word(UUID.randomUUID().toString(), TEST_LEXICON_METADATA.id(), TEST_USERNAME, Map.of("kana", "e", "meaning", "e"), "e", List.of("e.mp3"), Instant.EPOCH, Instant.now());
-        when(wordDao.findDuplicateWordInOtherLexicons(TEST_LANGUAGE, TEST_LEXICON_METADATA.id(), TEST_USERNAME, wordNoIdWithDuplicate)).thenReturn(duplicateWord);
+        when(wordDao.findDuplicateWords(TEST_LANGUAGE, List.of(TEST_LEXICON_METADATA.id()), TEST_USERNAME, wordNoIdWithDuplicate)).thenReturn(duplicateWord);
 
         Word wordNotSaved = new Word(UUID.randomUUID().toString(), TEST_LEXICON_METADATA.id(), "", Map.of("kana", "f", "meaning", "f"), "f", List.of("f.mp3"), null, null);
         Word wordFailingValidation = new Word(UUID.randomUUID().toString(), TEST_LEXICON_METADATA.id(), "", Map.of("kana", "h"), "h", List.of("h.mp3"), null, null);

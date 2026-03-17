@@ -19,9 +19,9 @@ public interface WordDao {
 
     List<Word> createWords(Language language, String lexiconId, List<Word> words);
 
-    Word findDuplicateWordInOtherLexicons(Language language, String lexiconId, String owner, Word word);
+    Word findDuplicateWords(Language language, List<String> lexiconIdsToCheck, String owner, Word word);
 
-    int updateWord(Word word);
+    int updateWord(Language language, Word word);
 
     List<Word> getLexiconWordsBatch(String lexiconId, String username, int count, int offset, Word lastWord);
 

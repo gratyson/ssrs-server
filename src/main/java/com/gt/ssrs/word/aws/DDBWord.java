@@ -1,5 +1,8 @@
 package com.gt.ssrs.word.aws;
 
+import com.gt.ssrs.language.Language;
+import com.gt.ssrs.language.WordElement;
+import com.gt.ssrs.util.HashUtil;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.Order;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 
@@ -13,6 +16,7 @@ public class DDBWord {
     public static final String TABLE_NAME = "Words";
 
     public static final String CREATE_INSTANT_INDEX_NAME = TABLE_NAME + "-by-create-instant";
+    public static final String DEDUPE_INDEX_NAME = "word-dedupe-index";
 
     public static final String ELEMENT_INDEX_NAME_PREFIX = TABLE_NAME + "-by-";
     public static final String KANA_INDEX_NAME = ELEMENT_INDEX_NAME_PREFIX + "kana";
@@ -27,6 +31,7 @@ public class DDBWord {
     public static final String AUDIO_FILES_ATTRIBUTE_NAME = "audioFiles";
     public static final String CREATE_INSTANT_ATTRIBUTE_NAME = "createInstant";
     public static final String UPDATE_INSTANT_ATTRIBUTE_NAME = "updateInstant";
+    public static final String DEDUPE_HASH_ATTRIBUTE_NAME = "dedupeHash";
 
     private final String id;
     private final String lexiconId;
@@ -36,6 +41,7 @@ public class DDBWord {
     private final List<String> audioFiles;
     private final Instant createInstant;
     private final Instant updateInstant;
+    private final Integer dedupeHash;
 
     private DDBWord(Builder b) {
         this.id = b.id;
@@ -46,6 +52,7 @@ public class DDBWord {
         this.audioFiles = b.audioFiles == null ? null : List.copyOf(b.audioFiles);
         this.createInstant = b.createInstant;
         this.updateInstant = b.updateInstant;
+        this.dedupeHash = b.dedupeHash;
     }
 
     public static Builder builder() {
@@ -63,6 +70,7 @@ public class DDBWord {
 
     @DynamoDbAttribute(LEXICON_ID_ATTRIBUTE_NAME)
     @DynamoDbSecondaryPartitionKey(indexNames = { KANA_INDEX_NAME, KANJI_INDEX_NAME, MEANING_INDEX_NAME, CREATE_INSTANT_INDEX_NAME })
+    @DynamoDbSecondarySortKey(indexNames = { DDBWord.DEDUPE_INDEX_NAME })
     public String lexiconId() {
         return lexiconId;
     }
@@ -93,9 +101,15 @@ public class DDBWord {
         return createInstant;
     }
 
-    @DynamoDbAttribute(UPDATE_INSTANT_ATTRIBUTE_NAME    )
+    @DynamoDbAttribute(UPDATE_INSTANT_ATTRIBUTE_NAME)
     public Instant updateInstant() {
         return updateInstant;
+    }
+
+    @DynamoDbAttribute(DEDUPE_HASH_ATTRIBUTE_NAME)
+    @DynamoDbSecondaryPartitionKey(indexNames = { DDBWord.DEDUPE_INDEX_NAME })
+    public int dedupeHash() {
+        return dedupeHash;
     }
 
     @Override
@@ -109,6 +123,7 @@ public class DDBWord {
                 ", audioFiles=" + audioFiles +
                 ", createInstant=" + createInstant +
                 ", updateInstant=" + updateInstant +
+                ", dedupeHash=" + dedupeHash +
                 '}';
     }
 
@@ -121,6 +136,7 @@ public class DDBWord {
         private List<String> audioFiles;
         private Instant createInstant;
         private Instant updateInstant;
+        private int dedupeHash;
 
         private Builder() { }
 
@@ -133,6 +149,7 @@ public class DDBWord {
             this.audioFiles = ddbWord.audioFiles;
             this.createInstant = ddbWord.createInstant;
             this.updateInstant = ddbWord.updateInstant;
+            this.dedupeHash = ddbWord.dedupeHash;
         }
 
         public Builder id(String id) {
@@ -172,6 +189,11 @@ public class DDBWord {
 
         public Builder updateInstant(Instant updateInstant) {
             this.updateInstant = updateInstant;
+            return this;
+        }
+
+        public Builder dedupeHash(int dedupeHash) {
+            this.dedupeHash = dedupeHash;
             return this;
         }
 

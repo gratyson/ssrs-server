@@ -174,11 +174,6 @@ public class WordReviewHistoryDaoPG implements WordReviewHistoryDao {
     }
 
     @Override
-    public List<WordReviewHistory> getAllWordReviewHistory(String lexiconId, String username) {
-        return List.of();
-    }
-
-    @Override
     public List<String> getIdsForWordsToLearn(String lexiconId, String username, int wordCnt) {
         return template.query(
                 GET_WORD_IDS_TO_LEARN_SQL,

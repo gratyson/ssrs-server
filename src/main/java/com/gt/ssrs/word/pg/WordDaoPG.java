@@ -56,7 +56,7 @@ public class WordDaoPG implements WordDao {
             "WITH words AS " +
                     "(SELECT id, lexicon_id, owner, attributes, create_instant, update_instant, " + String.join(", ", AVAILABLE_ELEMENTS) + " " +
                     "FROM words " +
-                    "WHERE lexicon_id != :lexiconId AND owner = :owner ";
+                    "WHERE lexicon_id IN (:lexiconIdsCheck) AND owner = :owner ";
     private static final String FIND_DUPLICATE_WORD_IN_OTHER_LEXICONS_DEDUPE_CONDITION =
             " AND %s = :%s";
     private static final String FIND_DUPLICATE_WORD_IN_OTHER_LEXICONS_SUFFIX =
@@ -172,11 +172,11 @@ public class WordDaoPG implements WordDao {
     }
 
     @Override
-    public Word findDuplicateWordInOtherLexicons(Language language, String lexiconId, String owner, Word word) {
+    public Word findDuplicateWords(Language language, List<String> lexiconIdsCheck, String owner, Word word) {
         String sql = createFindDuplicateWordsInOtherLexiconsSql(language);
 
         MapSqlParameterSource params = new MapSqlParameterSource();
-        params.addValue("lexiconId", lexiconId);
+        params.addValue("lexiconIdsCheck", lexiconIdsCheck);
         params.addValue("owner", owner);
         for (WordElement dedupeElement : language.getDedupeElements()) {
             params.addValue(dedupeElement.getId(), word.elements().getOrDefault(dedupeElement.getId(), null));
@@ -211,7 +211,7 @@ public class WordDaoPG implements WordDao {
     }
 
     @Override
-    public int updateWord(Word word) {
+    public int updateWord(Language language, Word word) {
         return template.update(UPDATE_WORD_SQL, getWordParamMap(word));
     }
 

@@ -40,7 +40,7 @@ dependencies {
 	// AWS dependencies could be excluded if property 'build-aws' is not set. However, this
 	// also means they won't be available in the IDE. Since running locally doesn't have the
 	// same issues with cold-start times as Lambda, it should be fine to leave them in.
-	implementation platform('software.amazon.awssdk:bom:2.41.14')
+	implementation platform('software.amazon.awssdk:bom:2.42.14')
 	implementation 'software.amazon.awssdk:s3'
 	implementation 'software.amazon.awssdk:dynamodb'
 	implementation 'software.amazon.awssdk:dynamodb-enhanced'
@@ -50,6 +50,9 @@ dependencies {
 	implementation 'com.amazonaws:aws-lambda-java-core:1.2.1'
 	implementation 'com.amazonaws:aws-lambda-java-events:3.1.1'
 	implementation 'com.amazonaws.serverless:aws-serverless-java-container-springboot4:3.0.0'
+
+	// xxHash for deduplication purposes
+	implementation 'net.jpountz.lz4:lz4:1.3.0'
 
 	testImplementation 'com.amazonaws:DynamoDBLocal:2.6.1'
 }

@@ -15,8 +15,6 @@ public interface WordReviewHistoryDao {
 
     List<WordReviewHistory> updateWordReviewHistory(String username, List<WordReviewHistory> wordReviewHistories);
 
-    List<WordReviewHistory> getAllWordReviewHistory(String lexiconId, String username);
-
     List<String> getIdsForWordsToLearn(String lexiconId, String username, int wordCnt);
 
     void deleteUserWordReviewHistories(String lexiconId, String username, Collection<String> wordIds);

@@ -68,12 +68,12 @@ public class WordDaoDDB implements WordDao {
 
         return resultPages.resultsForTable(wordTable).stream()
                 .map(ddbWord -> DDBWordConverter.convertDDBWord(ddbWord))
-                .collect(Collectors.toUnmodifiableList());
+                .toList();
     }
 
     @Override
     public int createWord(Language language, String lexiconId, Word word) {
-        wordTable.putItem(DDBWordConverter.convertWord(word));
+        wordTable.putItem(DDBWordConverter.convertWord(language, word));
 
         return 1;
     }
@@ -91,57 +91,106 @@ public class WordDaoDDB implements WordDao {
 
     private List<Word> createWordsBatch(Language language, String lexiconId, List<Word> words) {
         WriteBatch.Builder<DDBWord> batchBuilder = WriteBatch.builder(DDBWord.class).mappedTableResource(wordTable);
-        DDBWordConverter.convertWordBatch(words).forEach(wordDDB -> batchBuilder.addPutItem(wordDDB));
+        DDBWordConverter.convertWordBatch(language, words).forEach(wordDDB -> batchBuilder.addPutItem(wordDDB));
 
         BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(b -> b.writeBatches(batchBuilder.build()));
 
         List<DDBWord> unprocessedWords = result.unprocessedPutItemsForTable(wordTable);
-        if (unprocessedWords.size() > 0) {
+        if (!unprocessedWords.isEmpty()) {
             Set<String> unprocessedWordIds = unprocessedWords.stream()
                     .map(wordDDB -> wordDDB.id())
                     .collect(Collectors.toUnmodifiableSet());
 
             return words.stream()
                     .filter(word -> !unprocessedWordIds.contains(word.id()))
-                    .collect(Collectors.toUnmodifiableList());
+                    .toList();
         }
 
         return words;
     }
 
     @Override
-    public Word findDuplicateWordInOtherLexicons(Language language, String lexiconId, String owner, Word word) {
-        // TODO: Skipping for now
+    public Word findDuplicateWords(Language language, List<String> lexiconIdsCheck, String owner, Word word) {
+        List<String> duplicateWordIds = findDuplicateWordsIds(language, word, lexiconIdsCheck);
+
+        if (duplicateWordIds != null && !duplicateWordIds.isEmpty()) {
+            List<Word> duplicateWords = loadWords(duplicateWordIds);
+            List<Word> duplicateOwnedWords = duplicateWords.stream()
+                    .filter(dupWord -> owner.equals(dupWord.owner()))
+                    .toList();
+
+            if (!duplicateOwnedWords.isEmpty()) {
+                return duplicateOwnedWords.getFirst();
+            }
+        }
+
         return null;
     }
 
-    @Override
-    public int updateWord(Word word) {
-        DDBWord updateWord = DDBWordConverter.convertWord(word);  // learned is irrelevant here as it gets overwritten based on WordReviewHistory
-        DDBWord existingWord = wordTable.getItem(Key.builder().partitionValue(word.id()).build());
+    private List<String> findDuplicateWordsIds(Language language, Word word, List<String> lexiconIdsCheck) {
+        QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(Key.builder().partitionValue(DDBWordConverter.computeDepupeHash(language, word)).build()))
+                .filterExpression(buildLexiconIdInExpression(lexiconIdsCheck))
+                .attributesToProject(DDBWord.ID_ATTRIBUTE_NAME)
+                .build();
 
-        if (existingWord == null) {
+        SdkIterable<Page<DDBWord>> response = wordTable.index(DDBWord.DEDUPE_INDEX_NAME).query(request);
+
+        return response.stream()
+                .flatMap(page -> page.items().stream())
+                .map(ddbWord -> ddbWord.id()).toList();
+    }
+
+    private Expression buildLexiconIdInExpression(List<String> lexiconIdsCheck) {
+        Map<String, String> expressionAttributeNames = new HashMap<>();
+        Map<String, AttributeValue> expressionAttributeValues = new HashMap<>();
+
+        StringBuilder filterExpression = new StringBuilder("#lexiconId IN (");
+        expressionAttributeNames.put("#lexiconId", DDBWord.LEXICON_ID_ATTRIBUTE_NAME);
+        for (int i = 0; i < lexiconIdsCheck.size(); i++) {
+            if (i > 0) {
+                filterExpression.append(", ");
+            }
+            filterExpression.append(":lexiconId").append(i);
+            expressionAttributeValues.put(":lexiconId" + i, AttributeValue.builder().s(lexiconIdsCheck.get(i)).build());
+        }
+        filterExpression.append(")");
+
+        return Expression.builder()
+                .expression(filterExpression.toString())
+                .expressionNames(expressionAttributeNames)
+                .expressionValues(expressionAttributeValues)
+                .build();
+
+    }
+
+    @Override
+    public int updateWord(Language language, Word word) {
+        DDBWord updateWord = DDBWordConverter.convertWord(language, word);
+        DDBWord ddbExistingWord = wordTable.getItem(Key.builder().partitionValue(word.id()).build());
+
+        if (ddbExistingWord == null) {
             String errMsg = "Attempt to update word " + word.id() + " failed because word does not existing in data store";
 
             log.error(errMsg);
             throw new DaoException(errMsg);
         }
 
-        // Some values need to maintained (ownership, review history) and some need to either be
-        // updated or deleted. This can't be done strictly with ignore nulls setting, so read the
-        // existing and update/maintain attributes as needed
-        DDBWord wordToSave = DDBWord.builder()
-                .id(existingWord.id())
-                .lexiconId(existingWord.lexiconId())
-                .owner(existingWord.owner())
-                .elements(updateWord.elements())
-                .attributes(updateWord.attributes())
-                .audioFiles(updateWord.audioFiles())
-                .createInstant(existingWord.createInstant())
-                .updateInstant(Instant.now())
-                .build();
+        Word existingWord = DDBWordConverter.convertDDBWord(ddbExistingWord);
 
-        wordTable.putItem(wordToSave);
+        // Copy over only the values that should be updated. Convert back to Word again
+        // so any processing done by the converter gets run on the updated word
+        Word newWordToSave = new Word(
+                existingWord.id(),
+                existingWord.lexiconId(),
+                existingWord.owner(),
+                updateWord.elements(),
+                updateWord.attributes(),
+                updateWord.audioFiles(),
+                existingWord.createInstant(),
+                Instant.now());
+
+        wordTable.putItem(DDBWordConverter.convertWord(language, newWordToSave));
 
         return 1;
     }
@@ -149,7 +198,7 @@ public class WordDaoDDB implements WordDao {
     @Override
     public void deleteWords(Collection<String> wordIds) {
         for (String wordId : wordIds) {
-            DDBWord deletedWord = wordTable.deleteItem(Key.builder().partitionValue(wordId).build());
+            wordTable.deleteItem(Key.builder().partitionValue(wordId).build());
         }
     }
 
@@ -202,13 +251,12 @@ public class WordDaoDDB implements WordDao {
 
         SdkIterable<Page<DDBWord>> results = wordTable.index(DDBWord.CREATE_INSTANT_INDEX_NAME).query(requestBuilder.build());
 
-        int totalScanned = 0;
         List<Word> wordsToReturn = new ArrayList<>();
         for (Page<DDBWord> page : results) {
             wordsToReturn.addAll(page.items()
                     .stream()
                     .map(ddbWord -> DDBWordConverter.convertDDBWord(ddbWord))
-                    .collect(Collectors.toUnmodifiableList()));
+                    .toList());
 
             if (wordsToReturn.size() >= count) {
                 break;
@@ -277,18 +325,16 @@ public class WordDaoDDB implements WordDao {
         List<String> audioFilesToSave = existingWord.audioFiles()
                 .stream()
                 .filter(name -> !name.equals(audioFileName))
-                .collect(Collectors.toUnmodifiableList());
+                .toList();
 
         if (audioFilesToSave.size() == existingWord.audioFiles().size()) {
             return 0;  // Nothing to delete
         }
 
         DDBWord wordSaved = wordTable.updateItem(b -> b
-                .item(DDBWord.builder()
-                    .id(wordId)
+                .item(DDBWord.builder(existingWord)
                     .audioFiles(audioFilesToSave)
-                    .build())
-                .ignoreNullsMode(IgnoreNullsMode.SCALAR_ONLY));
+                    .build()));
 
         if (wordSaved == null) {
             return 0;
@@ -299,58 +345,49 @@ public class WordDaoDDB implements WordDao {
 
     @Override
     public List<String> getWordsUniqueToLexicon(String lexiconId) {
-        // TODO: This is only used for deleting audio files which is unneeded in DDB. Audio file delete should probably
-        // be refactored
-        return List.of();
+        QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(Key.builder().partitionValue(lexiconId).build()))
+                .attributesToProject(DDBWord.ID_ATTRIBUTE_NAME)
+                .build();
+
+        SdkIterable<Page<DDBWord>> responseIterable = wordTable.index(DDBWord.CREATE_INSTANT_INDEX_NAME).query(request);
+
+        return responseIterable.stream()
+                .flatMap(page -> page.items().stream())
+                .map(ddbWord -> ddbWord.id())
+                .toList();
     }
 
     @Override
     public int getTotalLexiconWordCount(String lexiconId) {
-        QueryRequest queryRequest = QueryRequest.builder()
-                .tableName(DDBWord.TABLE_NAME)
-                .indexName(DDBWord.CREATE_INSTANT_INDEX_NAME)
-                .keyConditionExpression("#lexiconId = :lexiconId")
-                .expressionAttributeNames(Map.of("#lexiconId", "lexiconId"))
-                .expressionAttributeValues(Map.of(":lexiconId", AttributeValue.builder().s(lexiconId).build()))
-                .projectionExpression(DDBWord.ID_ATTRIBUTE_NAME)
-                .build();
-
-        QueryResponse queryResponse = dynamoDbClient.query(queryRequest);
-
-        return queryResponse.items().size();
+        return getWordsUniqueToLexicon(lexiconId).size();
     }
 
     @Override
     public List<String> getUniqueElementValues(String lexiconId, WordElement wordElement, int limit) {
-        QueryRequest queryRequest = QueryRequest.builder()
-                .tableName(DDBWord.TABLE_NAME)
-                .indexName(DDBWord.CREATE_INSTANT_INDEX_NAME)
-                .keyConditionExpression("#lexiconId = :lexiconId")
-                .expressionAttributeNames(Map.of("#lexiconId", "lexiconId"))
-                .expressionAttributeValues(Map.of(":lexiconId", AttributeValue.builder().s(lexiconId).build()))
-                .projectionExpression("elements." + wordElement.getId())
+        QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(Key.builder().partitionValue(lexiconId).build()))
+                .attributesToProject(DDBWord.ELEMENTS_ATTRIBUTE_NAME)
                 .limit(limit)
                 .build();
 
-        QueryResponse queryResponse = dynamoDbClient.query(queryRequest);
+        SdkIterable<Page<DDBWord>> responseIterable = wordTable.index(DDBWord.CREATE_INSTANT_INDEX_NAME).query(request);
 
-        return queryResponse.items().stream()
-                .map(map -> map.get("elements"))
-                .filter(Objects::nonNull)
-                .map(attributeValue -> attributeValue.m().get(wordElement.getId()))
-                .filter(Objects::nonNull)
-                .map(attributeValue -> attributeValue.s())
+        return responseIterable.stream()
+                .flatMap(page -> page.items().stream())
+                .map(ddbWord -> ddbWord == null ? null : ddbWord.elements() == null ? null : ddbWord.elements().get(wordElement.getId()))
+                .filter(elementValue -> elementValue != null && !elementValue.isBlank())
                 .distinct()
-                .collect(Collectors.toUnmodifiableList());
+                .toList();
     }
 
     private Expression buildFilterFromOptions(WordFilterOptions options) {
-        String expression = "";
+        StringBuilder expression = new StringBuilder();
         Map<String, String> expressionNames = new HashMap<>();
         Map<String, AttributeValue> expressionValues = new HashMap<>();
 
         if (options.attributes() != null && !options.attributes().isBlank()) {
-            expression += "contains(#attributes, :attributes)";
+            expression.append("contains(#attributes, :attributes)");
             expressionNames.put("#attributes", DDBWord.ATTRIBUTES_ATTRIBUTE_NAME);
             expressionValues.put(":attributes", AttributeValue.builder().s(options.attributes()).build());
         }
@@ -359,7 +396,7 @@ public class WordDaoDDB implements WordDao {
             for (Map.Entry<String, String> elementEntry : options.elements().entrySet()) {
                 if (elementEntry.getValue() != null && !elementEntry.getValue().isBlank()) {
                     String elementName = "element_" + elementEntry.getKey();
-                    expression += (!expression.isEmpty() ? " AND " : "") + "begins_with (#elements." + elementEntry.getKey() + ", :" + elementName + ")";
+                    expression.append((!expression.isEmpty()) ? " AND " : "").append("begins_with (#elements.").append(elementEntry.getKey()).append(", :").append(elementName).append(")");
                     expressionNames.put("#elements", DDBWord.ELEMENTS_ATTRIBUTE_NAME);
                     expressionValues.put(":" + elementName, AttributeValue.builder().s(elementEntry.getValue()).build());
                 }
@@ -368,13 +405,13 @@ public class WordDaoDDB implements WordDao {
 
         if (options.hasAudio() != null) {
             if (!expression.isEmpty()) {
-                expression += " AND ";
+                expression.append(" AND ");
             }
 
             if (options.hasAudio()) {
-                expression += ("size(#audioFiles) > :zero");
+                expression.append("size(#audioFiles) > :zero");
             } else {
-                expression += "(attribute_not_exists(#audioFiles) OR size(#audioFiles) = :zero)";
+                expression.append("(attribute_not_exists(#audioFiles) OR size(#audioFiles) = :zero)");
             }
             expressionNames.put("#audioFiles", DDBWord.AUDIO_FILES_ATTRIBUTE_NAME);
             expressionValues.put(":zero", AttributeValue.builder().n("0").build());
@@ -385,7 +422,7 @@ public class WordDaoDDB implements WordDao {
         }
 
         return Expression.builder()
-                .expression(expression)
+                .expression(expression.toString())
                 .expressionNames(expressionNames)
                 .expressionValues(expressionValues)
                 .build();

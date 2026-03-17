@@ -123,11 +123,6 @@ public class WordReviewHistoryDaoDDB implements WordReviewHistoryDao {
     }
 
     @Override
-    public List<WordReviewHistory> getAllWordReviewHistory(String lexiconId, String username) {
-        return List.of();  // TODO: Implement, obviously
-    }
-
-    @Override
     public List<String> getIdsForWordsToLearn(String lexiconId, String username, int wordCnt) {
         return getWordIdsByLearned(lexiconId, username, LearnedStatus.ReadyToLearn, wordCnt);
     }

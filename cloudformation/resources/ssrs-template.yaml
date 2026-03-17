@@ -209,6 +209,8 @@ Resources:
           AttributeType: S
         - AttributeName: createInstant
           AttributeType: S
+        - AttributeName: dedupeHash
+          AttributeType: N
       KeySchema:
         - AttributeName: id
           KeyType: HASH
@@ -245,6 +247,15 @@ Resources:
               KeyType: HASH
             - AttributeName: elements.kanji
               KeyType: RANGE
+        - IndexName: word-dedupe-index
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - lexiconId
+          KeySchema:
+            - AttributeName: dedupeHash
+              KeyType: HASH
+
 
   WordReviewHistoryTable:
     Type: AWS::DynamoDB::Table

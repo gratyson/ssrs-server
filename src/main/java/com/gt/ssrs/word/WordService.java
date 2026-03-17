@@ -55,13 +55,16 @@ public class WordService {
     }
 
     public Word updateWord(Word word, String username) {
+        long languageId = lexiconService.getLexiconLanguageId(word.lexiconId());
+        Language language = Language.getLanguageById(languageId);
+
         Word oldWord = loadWord(word.id());
         if (oldWord != null && !oldWord.owner().equals(username)) {
             return null;
         }
 
         Word wordToSave = withUsername(word, username);
-        if (saveExistingWord(wordToSave)) {
+        if (saveExistingWord(language, wordToSave)) {
             return wordToSave;
         }
 
@@ -71,7 +74,9 @@ public class WordService {
     public List<Word> saveWords(List<Word> words, String lexiconId, String username) {
         LexiconMetadata lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
         verifyCanEditLexicon(lexiconMetadata, username);
+
         Language language = Language.getLanguageById(lexiconMetadata.languageId());
+        List<String> ownedLexiconIds = getOwnedLexiconIds(username);
 
         List<Word> wordsToSave = new ArrayList<>();
         Set<String> newWordIds = new HashSet<>();
@@ -95,7 +100,7 @@ public class WordService {
                     }
                 }
             } else {
-                Word duplicateWord = wordDao.findDuplicateWordInOtherLexicons(language, lexiconId, username, word);
+                Word duplicateWord = wordDao.findDuplicateWords(language, ownedLexiconIds, username, word);
                 if (duplicateWord != null) {
                     // TODO: Return skipped duplicates with option to force?
                     //wordsToAttach.add(duplicateWord);
@@ -110,17 +115,27 @@ public class WordService {
             }
         }
 
+        List<Word> savedWords = null;
+        if (wordsToSave.isEmpty()) {
+            savedWords = List.of();
+        }
+        if (!wordsToSave.isEmpty()) {
+            savedWords = wordDao.createWords(language, lexiconId, wordsToSave);
 
-        List<Word> savedWords = wordDao.createWords(language, lexiconId, wordsToSave);
-
-        wordReviewHistoryService.createEmptyWordReviewHistoryForWords(username,
-                savedWords.stream()
-                        .filter(word -> newWordIds.contains(word.id()))
-                        .collect(Collectors.toUnmodifiableList()));
+            wordReviewHistoryService.createEmptyWordReviewHistoryForWords(username,
+                    savedWords.stream()
+                            .filter(word -> newWordIds.contains(word.id()))
+                            .collect(Collectors.toUnmodifiableList()));
+        }
 
         log.info("Saved {} new words in lexicon {}. {} duplicate words were skipped.", savedWords.size(), lexiconId, words.size() - savedWords.size());
-
         return savedWords;
+    }
+
+    private List<String> getOwnedLexiconIds(String username) {
+        return lexiconService.getAllLexiconMetadata(username).stream()
+                .map(lexiconMetadata -> lexiconMetadata.id())
+                .toList();
     }
 
     private Word buildWordToSave(String lexiconId, Word word, String username, Word existingWord) {
@@ -144,8 +159,8 @@ public class WordService {
         return new Word(wordId, lexiconId, username, processedElements, word.attributes().strip(), audioFiles, createInstant, Instant.now());
     }
 
-    private boolean saveExistingWord(Word word) {
-        return wordDao.updateWord(word) > 0;
+    private boolean saveExistingWord(Language language, Word word) {
+        return wordDao.updateWord(language, word) > 0;
     }
 
     private Language getLanguageForLexicon(String lexiconId) {
