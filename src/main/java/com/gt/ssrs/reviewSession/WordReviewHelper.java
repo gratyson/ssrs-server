@@ -119,7 +119,7 @@ public class WordReviewHelper {
         if (filteredSimiarElementValues.size() > 0) {
             Collections.shuffle(filteredSimiarElementValues);
 
-            selections.addAll(filteredSimiarElementValues.subList(0, filteredSimiarElementValues.size() < selectionCount ? filteredSimiarElementValues.size() - 1 : selectionCount - 1));
+            selections.addAll(filteredSimiarElementValues.subList(0, filteredSimiarElementValues.size() < selectionCount - 1 ? filteredSimiarElementValues.size() : selectionCount - 1));
         }
 
         Collections.shuffle(selections);
