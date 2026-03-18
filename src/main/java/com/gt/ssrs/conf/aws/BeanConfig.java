@@ -31,6 +31,8 @@ import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityPr
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClientBuilder;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -53,6 +55,20 @@ public class BeanConfig {
         }
 
         return s3ClientBuilder.build();
+    }
+
+    @Bean
+    public S3AsyncClient s3AsyncClient(@Value("${aws.region}") String region,
+                                       @Value("${aws.s3.username:}") String s3user,
+                                       @Value("${aws.s3.key:}") String s3key) {
+        S3AsyncClientBuilder s3AsyncClientBuilder = S3AsyncClient.builder()
+                .region(Region.of(region));
+
+        if (!s3user.isBlank() && !s3key.isBlank()) {
+            s3AsyncClientBuilder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(s3user, s3key)));
+        }
+
+        return s3AsyncClientBuilder.build();
     }
 
     @Bean

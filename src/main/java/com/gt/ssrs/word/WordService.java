@@ -10,6 +10,7 @@ import com.gt.ssrs.model.LexiconMetadata;
 import com.gt.ssrs.model.Word;
 import com.gt.ssrs.model.WordFilterOptions;
 import com.gt.ssrs.reviewHistory.WordReviewHistoryService;
+import com.gt.ssrs.util.ListUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,8 +25,6 @@ import java.util.stream.Collectors;
 public class WordService {
 
     private static final Logger log = LoggerFactory.getLogger(WordService.class);
-
-    private static final int DELETE_BATCH_SIZE = 100;
 
     private final LexiconService lexiconService;
     private final WordReviewHistoryService wordReviewHistoryService;
@@ -264,9 +263,8 @@ public class WordService {
                 .stream()
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
-
-        for(int idx = 0; idx < audioFileNames.size(); idx += DELETE_BATCH_SIZE) {
-            blobDao.deleteAudioFiles(audioFileNames.subList(idx, Math.min(idx + DELETE_BATCH_SIZE, audioFileNames.size())));
+        if (!audioFileNames.isEmpty()) {
+            blobDao.deleteAudioFiles(audioFileNames);
         }
     }
 

@@ -52,45 +52,52 @@ public class AudioService {
     }
 
     public Map<String, List<String>> saveAudioMultiple(List<String> wordIds, List<MultipartFile> files) {
-        Map<String, List<String>> savedFiles = new HashMap<>();
-
-        for (int i =0; i < wordIds.size(); i++) {  // equal lengths already verified by controller
-            String wordId = wordIds.get(i);
-            String newFileName = saveAudio(wordId, files.get(i));
-            if (newFileName != null && !newFileName.isBlank()) {
-                if (!savedFiles.containsKey(wordId)) {
-                    savedFiles.put(wordId, new ArrayList<>(List.of(newFileName)));
-                } else {
-                    savedFiles.get(wordId).add(newFileName);
-                }
-            }
-        }
-
-        return savedFiles;
-    }
-
-    public String saveAudio(String wordId, MultipartFile newAudioFile) {
-        Set<String> currentFileNamesWithoutExtension = getCurrentFileNamesWithoutExtension(wordId);
-        String newFileName = getNewFileName(wordId, newAudioFile.getOriginalFilename(), currentFileNamesWithoutExtension);
-
         try {
-            log.info("Saving new audio file {} for word {}", newFileName, wordId);
-            if (blobDao.saveAudioFile(newFileName, ByteBuffer.wrap(newAudioFile.getBytes())) > 0) {
-                if (wordDao.setAudioFileNameForWord(wordId, newFileName) > 0) {
-                    return newFileName;
-                } else {
-                    blobDao.deleteAudioFile(newFileName);
+            List<String> newFileNames = new ArrayList<>();
+            List<ByteBuffer> byteBuffers = new ArrayList<>();
+            for (int idx = 0; idx < wordIds.size(); idx++) {
+                newFileNames.add(getNewFileName(wordIds.get(idx), files.get(idx)));
+                byteBuffers.add(ByteBuffer.wrap(files.get(idx).getBytes()));
+            }
+
+            Set<String> savedFileNames = Set.copyOf(blobDao.saveAudioFiles(newFileNames, byteBuffers));
+
+            Map<String, List<String>> savedFiles = new HashMap<>();
+            for (int idx = 0; idx < newFileNames.size(); idx++) {
+                if (savedFileNames.contains(newFileNames.get(idx))) {
+                    savedFiles.computeIfAbsent(wordIds.get(idx), unused -> new ArrayList<>()).add(newFileNames.get(idx));
                 }
             }
 
+            if (!savedFiles.isEmpty()) {
+                wordDao.setAudioFileNameForWords(savedFiles);
+            }
+
+            return savedFiles;
         } catch (Exception ex) {
-            String errMsg = "Error saving audio file for word " + wordId;
+            String errMsg = "Error saving audio file for words";
 
             log.error(errMsg);
             throw new DaoException(errMsg, ex);
         }
+    }
 
-        return "";
+    public String saveAudio(String wordId, MultipartFile newAudioFile) {
+        Map<String, List<String>> newFileNamesByWordId = saveAudioMultiple(List.of(wordId), List.of(newAudioFile));
+
+        List<String> newFileNames = newFileNamesByWordId.get(wordId);
+        if (newFileNames != null && !newFileNames.isEmpty()) {
+            return newFileNames.get(0);
+        }
+
+        String errMsg = "Error saving audio file for word " + wordId;
+        log.error(errMsg);
+        throw new DaoException(errMsg);
+    }
+
+    private String getNewFileName(String wordId, MultipartFile newAudioFile) {
+        Set<String> currentFileNamesWithoutExtension = getCurrentFileNamesWithoutExtension(wordId);
+        return getNewFileName(wordId, newAudioFile.getOriginalFilename(), currentFileNamesWithoutExtension);
     }
 
     public boolean deleteAudio(String wordId, String audioFileName) {

@@ -379,6 +379,15 @@ public class WordDaoPG implements WordDao {
     }
 
     @Override
+    public void setAudioFileNameForWords(Map<String, List<String>> audioFileNamesByWordId) {
+        for (Map.Entry<String, List<String>> entry : audioFileNamesByWordId.entrySet()) {
+            for (String audioFileName : entry.getValue()) {
+                setAudioFileNameForWord(entry.getKey(), audioFileName);
+            }
+        }
+    }
+
+    @Override
     public int deleteAudioFileName(String wordId, String audioFileName) {
         return template.update(DELETE_AUDIO_FILE_SQL, Map.of("wordId", wordId, "audioFileName", audioFileName));
     }

@@ -49,7 +49,8 @@ public class AudioServiceTests {
     @BeforeEach
     public void setup() throws IOException {
         when(blobDao.loadAudioFile(AUDIO_1_FILE_1)).thenReturn(ByteBuffer.wrap(MOCK_FILE_BYTES_1));
-        when(blobDao.saveAudioFile(anyString(), any(ByteBuffer.class))).thenReturn(1);
+        when(blobDao.saveAudioFile(anyString(), any(ByteBuffer.class))).then(answer -> answer.getArgument(0));
+        when(blobDao.saveAudioFiles(anyList(), anyList())).then(answer -> answer.getArgument(0));
 
         when(wordDao.getAudioFileNamesForWord(WORD_1_ID)).thenReturn(List.of(AUDIO_1_FILE_1, AUDIO_1_FILE_2));
         when(wordDao.getAudioFileNamesForWord(WORD_2_ID)).thenReturn(List.of(AUDIO_2_FILE_1));
@@ -67,21 +68,28 @@ public class AudioServiceTests {
         mockSavedAudioFiles = new HashMap<>();
         failedSaveToWords = new ArrayList<>();
 
-        when(wordDao.setAudioFileNameForWord(anyString(), anyString())).then(invocation -> {
-            String wordId = invocation.getArgument(0);
-            String audioFileName = invocation.getArgument(1);
+        doAnswer(invocation -> {
+            Map<String, List<String>> audioFilesToSave = invocation.getArgument(0);
+            List<String> savedAudioFiles = new ArrayList<>();
 
-            assertTrue(Set.of(WORD_1_ID, WORD_2_ID).contains(wordId));
-            validateAudioFileName(wordId, audioFileName, "mp3");
+            for (Map.Entry<String, List<String>> audioFilesToSaveEntries : audioFilesToSave.entrySet()) {
+                String wordId = audioFilesToSaveEntries.getKey();
+                assertTrue(Set.of(WORD_1_ID, WORD_2_ID).contains(wordId));
 
-            if (WORD_1_ID.equals(wordId) && mockSavedAudioFiles.get(WORD_1_ID) != null) {
-                failedSaveToWords.add(audioFileName);
-                return 0;
+                for (String audioFileName : audioFilesToSaveEntries.getValue()) {
+                    validateAudioFileName(audioFilesToSaveEntries.getKey(), audioFileName, "mp3");
+
+                    if (WORD_1_ID.equals(wordId) && mockSavedAudioFiles.get(WORD_1_ID) != null) {
+                        failedSaveToWords.add(audioFileName);
+                    } else {
+                        mockSavedAudioFiles.computeIfAbsent(wordId, unused -> new ArrayList<>()).add(audioFileName);
+                        savedAudioFiles.add(audioFileName);
+                    }
+                }
             }
 
-            mockSavedAudioFiles.computeIfAbsent(wordId, unused -> new ArrayList<>()).add(audioFileName);
-            return 1;
-        });
+            return savedAudioFiles;
+        }).when(wordDao).setAudioFileNameForWords(anyMap());
 
         audioService = new AudioService(wordDao, blobDao);
     }
@@ -118,25 +126,13 @@ public class AudioServiceTests {
         assertEquals(1, mockSavedAudioFiles.get(WORD_1_ID).size());
         assertEquals(mockSavedAudioFiles.get(WORD_1_ID).get(0), savedFileName);
 
-        verify(blobDao).saveAudioFile(savedFileName, ByteBuffer.wrap(MOCK_FILE_BYTES_1));
-        verifyNoMoreInteractions(blobDao);
-    }
-
-    @Test
-    public void testSaveAudio_FailedSave() {
-        when(wordDao.setAudioFileNameForWord(eq(WORD_1_ID), anyString())).thenReturn(0);
-
-        assertEquals("", audioService.saveAudio(WORD_1_ID, AUDIO_FILE_1));
-
-        ArgumentCaptor<String> stringCaptor = ArgumentCaptor.forClass(String.class);
-        verify(blobDao).saveAudioFile(stringCaptor.capture(), eq(ByteBuffer.wrap(MOCK_FILE_BYTES_1)));
-        verify(blobDao).deleteAudioFile(stringCaptor.getValue());
+        verify(blobDao).saveAudioFiles(List.of(savedFileName), List.of(ByteBuffer.wrap(MOCK_FILE_BYTES_1)));
         verifyNoMoreInteractions(blobDao);
     }
 
     @Test
     public void testSaveAudio_Exception() {
-        when(blobDao.saveAudioFile(anyString(), any(ByteBuffer.class))).thenThrow(new DaoException("Test Exception"));
+        when(blobDao.saveAudioFiles(anyList(), anyList())).thenThrow(new DaoException("Test Exception"));
 
         try {
             audioService.saveAudio(WORD_1_ID, AUDIO_FILE_1);
@@ -156,22 +152,39 @@ public class AudioServiceTests {
         MultipartFile failedSave = mock(MultipartFile.class);
         when(failedSave.getBytes()).thenReturn(failedSaveBytes);
         when(failedSave.getOriginalFilename()).thenReturn("fail.mp3");
-        when(blobDao.saveAudioFile(anyString(), eq(ByteBuffer.wrap(failedSaveBytes)))).thenReturn(0);
+        when(blobDao.saveAudioFiles(anyList(), anyList())).then(answer -> {
+           List<String> fileNamesToSave = answer.getArgument(0);
+           return List.of(fileNamesToSave.get(0), fileNamesToSave.get(3), fileNamesToSave.get(4));
+        });
 
         Map<String, List<String>> result = audioService.saveAudioMultiple(List.of(WORD_1_ID, WORD_1_ID, WORD_1_ID, WORD_2_ID, WORD_2_ID), List.of(AUDIO_FILE_1, failedSave, AUDIO_FILE_2, AUDIO_FILE_3, AUDIO_FILE_4));
         assertEquals(2, result.keySet().size());
         assertEquals(1, result.get(WORD_1_ID).size());
         assertEquals(2, result.get(WORD_2_ID).size());
-        assertEquals(mockSavedAudioFiles, result);
+        assertEquals(Map.of(WORD_1_ID, List.of(result.get(WORD_1_ID).get(0)),
+                            WORD_2_ID, List.of(result.get(WORD_2_ID).get(0), result.get(WORD_2_ID).get(1))),
+                result);
 
-        assertEquals(1, failedSaveToWords.size());
-        verify(blobDao).deleteAudioFile(failedSaveToWords.get(0));
+        ArgumentCaptor<List<String>> fileNamesCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<ByteBuffer>> byteBufferCaptor = ArgumentCaptor.forClass(List.class);
 
-        verify(blobDao).saveAudioFile(result.get(WORD_1_ID).get(0), ByteBuffer.wrap(AUDIO_FILE_1.getBytes()));
-        verify(blobDao).saveAudioFile(anyString(), eq(ByteBuffer.wrap(failedSaveBytes)));  // this would be the only time filename was used, so the actual value doesn't really matter
-        verify(blobDao).saveAudioFile(failedSaveToWords.get(0), ByteBuffer.wrap(AUDIO_FILE_2.getBytes()));
-        verify(blobDao).saveAudioFile(result.get(WORD_2_ID).get(0), ByteBuffer.wrap(AUDIO_FILE_3.getBytes()));
-        verify(blobDao).saveAudioFile(result.get(WORD_2_ID).get(1), ByteBuffer.wrap(AUDIO_FILE_4.getBytes()));
+        verify(blobDao).saveAudioFiles(fileNamesCaptor.capture(), byteBufferCaptor.capture());
+
+        List<String> captureFileNames = fileNamesCaptor.getValue();
+        List<ByteBuffer> capturedByteBuffers = byteBufferCaptor.getValue();
+
+        assertEquals(5, captureFileNames.size());
+        assertEquals(result.get(WORD_1_ID).get(0), captureFileNames.get(0));
+        assertEquals(result.get(WORD_2_ID).get(0), captureFileNames.get(3));
+        assertEquals(result.get(WORD_2_ID).get(1), captureFileNames.get(4));
+
+        assertEquals(5, capturedByteBuffers.size());
+        assertEquals(ByteBuffer.wrap(AUDIO_FILE_1.getBytes()), capturedByteBuffers.get(0));
+        assertEquals(ByteBuffer.wrap(failedSaveBytes), capturedByteBuffers.get(1));
+        assertEquals(ByteBuffer.wrap(AUDIO_FILE_2.getBytes()), capturedByteBuffers.get(2));
+        assertEquals(ByteBuffer.wrap(AUDIO_FILE_3.getBytes()), capturedByteBuffers.get(3));
+        assertEquals(ByteBuffer.wrap(AUDIO_FILE_4.getBytes()), capturedByteBuffers.get(4));
+
         verifyNoMoreInteractions(blobDao);
     }
 

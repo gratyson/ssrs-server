@@ -3,9 +3,11 @@ package com.gt.ssrs.blob.pg;
 import com.gt.ssrs.blob.BlobDao;
 import com.gt.ssrs.blob.model.BlobPath;
 import com.gt.ssrs.exception.DaoException;
+import com.gt.ssrs.util.ListUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
@@ -14,13 +16,13 @@ import java.nio.ByteBuffer;
 import java.sql.*;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
 public class BlobDaoPG implements BlobDao {
 
     private static final Duration BLOB_PATH_DURATION = Duration.ofDays(365);
-    private static final int DELETE_BATCH_SIZE = 100;
     private static final String IMAGE_PATH_PREFIX = "blob/image/";
     private static final String AUDIO_PATH_PREFIX = "audio/audio?audioFileName=";
 
@@ -41,7 +43,7 @@ public class BlobDaoPG implements BlobDao {
                     "INSERT INTO audio (audio_file_name, audio_oid) VALUES (?, ?) " +
                     "ON CONFLICT (audio_file_name) DO UPDATE " +
                     "     SET audio_oid = excluded.audio_oid; " +
-                    "COMMIT TRANSACTION;";
+            "COMMIT TRANSACTION;";
 
     private static final String LOAD_AUDIO_SQL =
             "SELECT audio_oid FROM audio WHERE audio_file_name = ?";
@@ -52,10 +54,13 @@ public class BlobDaoPG implements BlobDao {
             "DELETE FROM audio WHERE audio_file_name IN (";
 
     private final Connection databaseConnection;
+    private final int maxDeleteBatchSize;
 
     @Autowired
-    public BlobDaoPG(Connection blobDatabaseConnection) {
+    public BlobDaoPG(Connection blobDatabaseConnection,
+                     @Value("${ssrs.datasource.postgres.maxDeleteBatchSize:100}") int maxDeleteBatchSize) {
         this.databaseConnection = blobDatabaseConnection;
+        this.maxDeleteBatchSize = maxDeleteBatchSize;
     }
 
     @Override
@@ -77,8 +82,26 @@ public class BlobDaoPG implements BlobDao {
     public void deleteAudioFiles(List<String> names) { deleteBlobFiles(DELETE_AUDIO_SQL_PREFIX, names);}
 
     @Override
-    public int saveAudioFile(String name, ByteBuffer bytes) {
-        return saveBlobFile(SAVE_AUDIO_SQL, name, bytes);
+    public String saveAudioFile(String name, ByteBuffer bytes) {
+        if (saveBlobFile(SAVE_AUDIO_SQL, name, bytes) > 0) {
+            return name;
+        }
+
+        return "";
+    }
+
+    @Override
+    public List<String> saveAudioFiles(List<String> names, List<ByteBuffer> byteBuffers) {
+        List<String> savedAudioFileNames = new ArrayList<>();
+
+        for (int idx = 0; idx < names.size(); idx++) {
+            String savedAudioFileName = saveAudioFile(names.get(idx), byteBuffers.get(idx));
+            if (savedAudioFileName != null && !savedAudioFileName.isBlank()) {
+                savedAudioFileNames.add(savedAudioFileName);
+            }
+        }
+
+        return savedAudioFileNames;
     }
 
     private int saveBlobFile(String saveSql, String name, ByteBuffer bytes) {
@@ -157,8 +180,8 @@ public class BlobDaoPG implements BlobDao {
             return;  // nothing to delete, empty array will also cause syntax error
         }
 
-        for(int offset = 0; offset < names.size(); offset += DELETE_BATCH_SIZE) {
-            int chunkSize = names.size() > offset + DELETE_BATCH_SIZE ? DELETE_BATCH_SIZE : names.size() - offset;
+        for(int offset = 0; offset < names.size(); offset += maxDeleteBatchSize) {
+            int chunkSize = names.size() > offset + maxDeleteBatchSize ? maxDeleteBatchSize : names.size() - offset;
 
             try {
                 PreparedStatement ps = databaseConnection.prepareStatement(buildDeleteSql(deleteSqlPrefix, chunkSize));

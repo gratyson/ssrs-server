@@ -47,16 +47,24 @@ public class CognitoFilter extends OncePerRequestFilter {
 
         if (idToken != null && !idToken.isBlank()) {
             Claims claims = extractClaims(idToken);
-            Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(claims.get(JWT_CLAIMS_USERID).toString(), "", List.of());
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            if (claims != null) {
+                Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(claims.get(JWT_CLAIMS_USERID).toString(), "", List.of());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
         }
 
         filterChain.doFilter(request, response);
     }
 
     private Claims extractClaims(String idToken) {
+        PublicKey publicKey = getPublicKey(idToken);
+
+        if (publicKey == null) {
+            return null;
+        }
+
         return Jwts.parser()
-                .verifyWith(getPublicKey(idToken))
+                .verifyWith(publicKey)
                 .build()
                 .parseSignedClaims(idToken)
                 .getPayload();
@@ -68,7 +76,13 @@ public class CognitoFilter extends OncePerRequestFilter {
 
         ObjectMapper mapper = new ObjectMapper();
         JsonNode node = mapper.readTree(decodedHeader);
-        String keyId = node.get(JWT_HEADER_KEY_ID).asString();
+
+        JsonNode keyIdNode = node.get(JWT_HEADER_KEY_ID);
+        if (keyIdNode == null) {
+            return null;
+        }
+
+        String keyId = keyIdNode.asString();
         String algorithm = node.get(JWT_HEADER_KEY_ALGORITHM).asString();
 
         return cognitoJwksProvider.getJwksKey(keyId, algorithm);

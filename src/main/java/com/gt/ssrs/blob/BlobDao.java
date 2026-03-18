@@ -15,7 +15,9 @@ public interface BlobDao {
 
     void deleteImageFile(String name);
 
-    int saveAudioFile(String name, ByteBuffer bytes);
+    String saveAudioFile(String name, ByteBuffer bytes);
+
+    List<String> saveAudioFiles(List<String> names, List<ByteBuffer> byteBuffers);
 
     ByteBuffer loadAudioFile(String name);
 

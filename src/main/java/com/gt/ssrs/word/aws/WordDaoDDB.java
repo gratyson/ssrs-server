@@ -59,6 +59,12 @@ public class WordDaoDDB implements WordDao {
 
     @Override
     public List<Word> loadWords(Collection<String> wordIds) {
+        return loadDdbWords(wordIds).stream()
+                .map(ddbWord -> DDBWordConverter.convertDDBWord(ddbWord))
+                .toList();
+    }
+
+    private List<DDBWord> loadDdbWords(Collection<String> wordIds) {
         ReadBatch.Builder<DDBWord> batchBuilder = ReadBatch.builder(DDBWord.class).mappedTableResource(wordTable);
         wordIds.stream()
                 .distinct()
@@ -67,7 +73,6 @@ public class WordDaoDDB implements WordDao {
         BatchGetResultPageIterable resultPages = dynamoDbEnhancedClient.batchGetItem(b -> b.addReadBatch(batchBuilder.build()));
 
         return resultPages.resultsForTable(wordTable).stream()
-                .map(ddbWord -> DDBWordConverter.convertDDBWord(ddbWord))
                 .toList();
     }
 
@@ -307,6 +312,27 @@ public class WordDaoDDB implements WordDao {
         }
 
         return 1;
+    }
+
+    @Override
+    public void setAudioFileNameForWords(Map<String, List<String>> audioFileNamesByWordId) {
+        List<DDBWord> existingWords = loadDdbWords(audioFileNamesByWordId.keySet());
+
+        WriteBatch.Builder<DDBWord> batchBuilder = WriteBatch.builder(DDBWord.class).mappedTableResource(wordTable);
+        for (DDBWord existingWord : existingWords) {
+            // TODO: check ownership
+
+            List<String> audioFileNamesToSave = new ArrayList<>(audioFileNamesByWordId.get(existingWord.id()));
+            if (existingWord.audioFiles() != null && !existingWord.audioFiles().isEmpty()) {
+                audioFileNamesToSave.addAll(existingWord.audioFiles());
+            }
+
+            batchBuilder.addPutItem(DDBWord.builder(existingWord)
+                    .audioFiles(audioFileNamesToSave)
+                    .build());
+        }
+
+        dynamoDbEnhancedClient.batchWriteItem(b -> b.addWriteBatch(batchBuilder.build()));
     }
 
     @Override

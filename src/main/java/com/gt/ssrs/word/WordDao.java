@@ -33,6 +33,8 @@ public interface WordDao {
 
     int setAudioFileNameForWord(String wordId, String audioFileName);
 
+    void setAudioFileNameForWords(Map<String, List<String>> audioFileNamesByWordId);
+
     int deleteAudioFileName(String wordId, String audioFileName);
 
     List<String> getWordsUniqueToLexicon(String lexiconId);
