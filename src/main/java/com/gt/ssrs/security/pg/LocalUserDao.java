@@ -18,11 +18,19 @@ public class LocalUserDao {
 
     private static final Logger log = LoggerFactory.getLogger(LocalUserDao.class);
 
-    private static final String GET_USER_SQL = "SELECT id, username, password, account_expiration, locked, credential_expiration, enabled " +
+    private static final String GET_USER_SQL =
+            "SELECT id, username, password, account_expiration, locked, credential_expiration, enabled " +
             "FROM users " +
             "WHERE username = :username";
-    private static final String INSERT_USER_SQL = "INSERT INTO users (username, password, account_expiration, credential_expiration, locked, enabled) " +
+
+    private static final String INSERT_USER_SQL =
+            "INSERT INTO users (username, password, account_expiration, credential_expiration, locked, enabled) " +
             "VALUES (:username, :password, :accountExpiration, :credentialExpiration, :locked, :enabled)";
+
+    private static final String SET_USER_PASSWORD_SQL =
+            "UPDATE users " +
+            "SET password = :password " +
+            "WHERE username = :username ";
 
     private NamedParameterJdbcTemplate template;
 
@@ -63,6 +71,14 @@ public class LocalUserDao {
             throw new DaoException("Expected 1 user, but found 2 or more.");
         }
         return queriedUsers.get(0);
+    }
+
+    public void setUserPassword(String username, String endcodedPassword) {
+        Map<String, Object> localUserParameters = new HashMap<>();
+        localUserParameters.put("username", username);
+        localUserParameters.put("password", endcodedPassword);
+
+        template.update(SET_USER_PASSWORD_SQL, localUserParameters);
     }
 
     private static Instant toInstant(Timestamp timestamp) {

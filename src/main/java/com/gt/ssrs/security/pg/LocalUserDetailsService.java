@@ -62,7 +62,27 @@ public class LocalUserDetailsService extends AuthService {
 
     @Override
     public AuthRequestResponse changeUserPassword(String username, String currentPassword, String newPassword, String reenterNewPassword) {
-        return new AuthRequestResponse(false, "Not implemented");
+        Authentication authenticationResponse = null;
+        try {
+            authenticationResponse = this.authenticationManager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(username, currentPassword));
+        } catch (BadCredentialsException ex) { }
+
+        if (authenticationResponse == null || !authenticationResponse.isAuthenticated()) {
+            return new AuthRequestResponse(false, "Current password is not correct");
+        }
+
+        if (!validateNewPassword(newPassword, reenterNewPassword)) {
+            return new AuthRequestResponse(false, passwordValidationMessage);
+        }
+
+        try {
+            userDetailsManager.changePassword(currentPassword, newPassword);
+        } catch (Exception ex) {
+            log.warn("An error occurred processing a password change request.", ex);
+            return new AuthRequestResponse(false, "An error occurred processing the password change request.");
+        }
+
+        return new AuthRequestResponse(true, "");
     }
 
     @Override

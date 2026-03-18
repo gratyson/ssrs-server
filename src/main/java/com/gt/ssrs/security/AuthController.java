@@ -97,7 +97,7 @@ public class AuthController {
                 displayName,
                 changePasswordRequest.oldPassword,
                 changePasswordRequest.newPassword,
-                changePasswordRequest.reenterNewPassword);
+                changePasswordRequest.reEnterNewPassword);
 
         return new ChangePasswordResponse(authRequestResponse.success(), authRequestResponse.errorMsg());
     }
@@ -146,6 +146,6 @@ public class AuthController {
     public record RegisterRequest(String username, String password, String reenterPassword) { }
     public record RegisterResponse(boolean success, String errMsg) { }
 
-    public record ChangePasswordRequest(String username, String oldPassword, String newPassword, String reenterNewPassword) { }
+    public record ChangePasswordRequest(String oldPassword, String newPassword, String reEnterNewPassword) { }
     public record ChangePasswordResponse(boolean success, String errMsg) { }
 }

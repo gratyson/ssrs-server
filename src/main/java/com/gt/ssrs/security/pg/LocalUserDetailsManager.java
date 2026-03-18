@@ -4,6 +4,8 @@ import com.gt.ssrs.exception.InvalidUserDetailsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,7 +43,10 @@ public class LocalUserDetailsManager implements UserDetailsManager {
 
     @Override
     public void changePassword(String oldPassword, String newPassword) {
-        throw new RuntimeException("??? what user?");
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+
+        localUserDao.setUserPassword(username, passwordEncoder.encode(newPassword));
     }
 
     @Override
