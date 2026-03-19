@@ -36,7 +36,7 @@ public class AudioController {
     public ResponseEntity GetAudio(@RequestParam("audioFileName") String audioFileName) {
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.CONTENT_TYPE, "audio/" + FileNameUtil.getExtension(audioFileName).substring(1));
-        headers.add(HttpHeaders.CONTENT_DISPOSITION, "public, max-age=" + CACHE_DURATION_SECONDS);
+        headers.add(HttpHeaders.CACHE_CONTROL, "public, max-age=" + CACHE_DURATION_SECONDS);
 
         return ResponseEntity
                 .status(HttpStatus.OK)

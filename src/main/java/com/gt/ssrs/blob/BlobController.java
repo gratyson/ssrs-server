@@ -37,7 +37,7 @@ public class BlobController {
     public ResponseEntity loadImageFile(@PathVariable String fileName) {
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.CONTENT_TYPE, "image/" + fileName.substring(fileName.lastIndexOf(".") + 1));
-        headers.add(HttpHeaders.CONTENT_DISPOSITION, "public, max-age=" + CACHE_DURATION_SECONDS);
+        headers.add(HttpHeaders.CACHE_CONTROL, "public, max-age=" + CACHE_DURATION_SECONDS);
 
         return ResponseEntity
                 .status(HttpStatus.OK)
