@@ -1,6 +1,13 @@
 AWSTemplateFormatVersion: 2010-09-09
 
 Parameters:
+  Stage:
+    Description: The stage to deploy (e.g. dev, prod, etc.)
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
   UniqueId:
     Description: A unique identifer to append to the name of global resources (s3, etc.)
     Type: String
@@ -9,17 +16,17 @@ Resources:
   SsrsDeployBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub ssrs-deploy-${UniqueId}
+      BucketName: !Sub ssrs-deploy-${Stage}-${UniqueId}
 
   SsrsDeployUser:
     Type: AWS::IAM::User
     Properties:
-      UserName: !Sub ssrs-deploy-user
+      UserName: !Sub ssrs-deploy-user-${Stage}
 
   SsrsDeployUserPolicy:
     Type: AWS::IAM::UserPolicy
     Properties:
-      PolicyName: !Sub ssrs-deploy-user-policy
+      PolicyName: !Sub ssrs-deploy-user-policy-${Stage}
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -30,12 +37,10 @@ Resources:
               - s3:DeleteObject
               - s3:ListBucket
             Resource:
-              - !Sub arn:aws:s3:::ssrs-deploy-${UniqueId}
-              - !Sub arn:aws:s3:::ssrs-deploy-${UniqueId}/*
-              - !Sub arn:aws:s3:::ssrs-frontend-assets-dev-${UniqueId}
-              - !Sub arn:aws:s3:::ssrs-frontend-assets-dev-${UniqueId}/*
-              - !Sub arn:aws:s3:::ssrs-frontend-assets-prod-${UniqueId}
-              - !Sub arn:aws:s3:::ssrs-frontend-assets-prod-${UniqueId}/*
+              - !Sub arn:aws:s3:::ssrs-deploy-${Stage}-${UniqueId}*
+              - !Sub arn:aws:s3:::ssrs-deploy-${Stage}-${UniqueId}/*
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-${Stage}-${UniqueId}*
+              - !Sub arn:aws:s3:::ssrs-frontend-assets-${Stage}-${UniqueId}/*
           - Effect: Allow
             Action:
               - s3:CreateBucket
@@ -62,5 +67,5 @@ Resources:
               - cloudformation:DescribeStacks
             Resource:
               - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ssrs*
-      UserName: !Sub ssrs-deploy-user
+      UserName: !Sub ssrs-deploy-user-${Stage}
     DependsOn: SsrsDeployUser

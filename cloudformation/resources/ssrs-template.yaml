@@ -145,7 +145,7 @@ Resources:
         - x86_64
       Runtime: java21
       Code:
-        S3Bucket: !Sub ssrs-deploy-${UniqueId}
+        S3Bucket: !Sub ssrs-deploy-${Stage}-${UniqueId}
         S3Key: ssrs.zip
       Handler: com.gt.ssrs.handler.aws.StreamLambdaHandler
       Timeout: 30
@@ -158,6 +158,7 @@ Resources:
           AWS_S3_AUDIOBUCKETNAME: !Ref SsrsAudioBucket
           AWS_COGNITO_CLIENTID: !Ref SsrsUserPoolClient
           AWS_COGNITO_USERPOOLID: !GetAtt SsrsUserPool.UserPoolId
+          SSRS_SECURITY_ALLOWUSERREGISTRATION: false
       Role: !GetAtt SsrsFunctionRole.Arn
       LoggingConfig:
         ApplicationLogLevel: INFO
@@ -425,7 +426,7 @@ Resources:
   SsrsRestEndpointsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://ssrs-deploy-${UniqueId}.s3.${AWS::Region}.amazonaws.com/cf-templates/ssrs-template-api.yaml
+      TemplateURL: !Sub https://ssrs-deploy-${Stage}-${UniqueId}.s3.${AWS::Region}.amazonaws.com/cf-templates/ssrs-template-api.yaml
       Parameters:
         Stage: !Sub ${Stage}
         SsrsRestApiId: !Ref SsrsRestApi
