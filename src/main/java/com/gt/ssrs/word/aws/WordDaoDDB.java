@@ -122,6 +122,7 @@ public class WordDaoDDB implements WordDao {
             List<Word> duplicateWords = loadWords(duplicateWordIds);
             List<Word> duplicateOwnedWords = duplicateWords.stream()
                     .filter(dupWord -> owner.equals(dupWord.owner()))
+                    .filter(dupWord -> dedupeElementsMatch(language, word, dupWord))
                     .toList();
 
             if (!duplicateOwnedWords.isEmpty()) {
@@ -130,6 +131,18 @@ public class WordDaoDDB implements WordDao {
         }
 
         return null;
+    }
+
+    private boolean dedupeElementsMatch(Language language, Word word, Word potentialDuplicateWord) {
+        for (WordElement dedupeElement : language.getDedupeElements()) {
+            // Consider null = "" for dedupe purposes
+            if (!Objects.toString(word.elements().get(dedupeElement.getId()), "").equals(
+                    Objects.toString(potentialDuplicateWord.elements().get(dedupeElement.getId()), ""))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private List<String> findDuplicateWordsIds(Language language, Word word, List<String> lexiconIdsCheck) {
