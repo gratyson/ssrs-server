@@ -191,6 +191,9 @@ Resources:
               KeyType: HASH
             - AttributeName: title
               KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
 
   WordsTable:
     Type: AWS::DynamoDB::Table
@@ -256,6 +259,9 @@ Resources:
           KeySchema:
             - AttributeName: dedupeHash
               KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
 
 
   WordReviewHistoryTable:
@@ -296,6 +302,9 @@ Resources:
               KeyType: RANGE
             - AttributeName: createInstant
               KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
 
   ReviewEventTable:
     Type: AWS::DynamoDB::Table
@@ -332,6 +341,9 @@ Resources:
               KeyType: RANGE
             - AttributeName: eventInstant
               KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
 
 
   ScheduledReviewTable:
@@ -369,6 +381,9 @@ Resources:
               KeyType: RANGE
             - AttributeName: scheduledTestTime
               KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
 
   UserConfigTable:
     Type: AWS::DynamoDB::Table
@@ -381,6 +396,9 @@ Resources:
       KeySchema:
         - AttributeName: username
           KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
 
   UserNotepadTable:
     Type: AWS::DynamoDB::Table
@@ -393,6 +411,9 @@ Resources:
       KeySchema:
         - AttributeName: username
           KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
 
 
   SsrsRestApi:
