@@ -73,7 +73,13 @@ public class WordReviewHistoryDaoDDB implements WordReviewHistoryDao {
 
     @Override
     public List<WordReviewHistory> getWordReviewHistory(String lexiconId, String username, Collection<String> wordIds) {
-        return DDBWordReviewHistoryConverter.convertDDBWordReviewHistoryBatch(getDDBWordReviewHistoryBatch(lexiconId, username, wordIds));
+        List<WordReviewHistory> wordReviewHistories = new ArrayList<>();
+
+        for (List<String> subList : ListUtil.partitionList(List.copyOf(wordIds), maxWriteBatchSize)) {
+            wordReviewHistories.addAll(DDBWordReviewHistoryConverter.convertDDBWordReviewHistoryBatch(getDDBWordReviewHistoryBatch(lexiconId, username, subList)));
+        }
+
+        return wordReviewHistories;
     }
 
     @Override
