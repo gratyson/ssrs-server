@@ -121,6 +121,24 @@ Resources:
         - StatusCode: 200
 
 
+  SsrsRestApiResourcePing:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Sub ${SsrsRestApiId}
+      ParentId: !Sub ${SsrsRestApiRootResourceId}
+      PathPart: ping
+  SsrsRestApiResourcePingGET:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      RestApiId: !Sub ${SsrsRestApiId}
+      ResourceId: !Ref SsrsRestApiResourcePing
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SsrsFunctionArn}/invocations
+
 
   SsrsRestApiResourceRest:
     Type: AWS::ApiGateway::Resource

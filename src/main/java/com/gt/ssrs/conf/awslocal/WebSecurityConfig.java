@@ -46,6 +46,7 @@ public class WebSecurityConfig {
                         .requestMatchers("/rest/auth/login").permitAll()
                         .requestMatchers("/rest/auth/register").permitAll()
                         .requestMatchers("/rest/auth/canRegister").permitAll()
+                        .requestMatchers("/ping").permitAll()
                         .anyRequest().authenticated())
                 .logout((logout) -> logout.permitAll())
                 .addFilterAfter(cognitoFilter, LogoutFilter.class);
