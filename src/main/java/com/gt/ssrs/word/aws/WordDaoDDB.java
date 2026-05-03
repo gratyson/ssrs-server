@@ -35,6 +35,7 @@ public class WordDaoDDB implements WordDao {
 
     private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
+    private final int maxReadBatchSize;
     private final int maxWriteBatchSize;
 
     private final DynamoDbTable<DDBWord> wordTable;
@@ -42,9 +43,11 @@ public class WordDaoDDB implements WordDao {
     @Autowired
     public WordDaoDDB(DynamoDbClient dynamoDbClient,
                       DynamoDbEnhancedClient dynamoDbEnhancedClient,
+                      @Value("${aws.dynamodb.maxReadBatchSize}") int maxReadBatchSize,
                       @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize) {
         this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
+        this.maxReadBatchSize = maxReadBatchSize;
         this.maxWriteBatchSize = maxWriteBatchSize;
 
         this.wordTable = dynamoDbEnhancedClient.table(DDBWord.TABLE_NAME, TableSchema.fromImmutableClass(DDBWord.class));
@@ -58,13 +61,23 @@ public class WordDaoDDB implements WordDao {
     }
 
     @Override
-    public List<Word> loadWords(Collection<String> wordIds) {
+    public List<Word> loadWords(List<String> wordIds) {
         return loadDdbWords(wordIds).stream()
                 .map(ddbWord -> DDBWordConverter.convertDDBWord(ddbWord))
                 .toList();
     }
 
-    private List<DDBWord> loadDdbWords(Collection<String> wordIds) {
+    private List<DDBWord> loadDdbWords(List<String> wordIds) {
+        List<DDBWord> loadedWords = new ArrayList<>();
+
+        for (List<String> subList : ListUtil.partitionList(wordIds, maxReadBatchSize)) {
+            loadedWords.addAll(loadDdbWordsBatch(subList));
+        }
+
+        return loadedWords;
+    }
+
+    private List<DDBWord> loadDdbWordsBatch(List<String> wordIds) {
         ReadBatch.Builder<DDBWord> batchBuilder = ReadBatch.builder(DDBWord.class).mappedTableResource(wordTable);
         wordIds.stream()
                 .distinct()
@@ -75,6 +88,8 @@ public class WordDaoDDB implements WordDao {
         return resultPages.resultsForTable(wordTable).stream()
                 .toList();
     }
+
+
 
     @Override
     public int createWord(Language language, String lexiconId, Word word) {

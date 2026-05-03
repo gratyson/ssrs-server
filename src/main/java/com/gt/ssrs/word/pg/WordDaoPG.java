@@ -137,7 +137,7 @@ public class WordDaoPG implements WordDao {
     }
 
     @Override
-    public List<Word> loadWords(Collection<String> wordIds) {
+    public List<Word> loadWords(List<String> wordIds) {
         return template.query(AUDIO_JOIN_PREFIX + WORDS_QUERY_SQL + AUDIO_JOIN_SUFFIX,
                 Map.of("wordIds", wordIds),
                 rs -> { return processWordWithAudioResultSet(rs); });

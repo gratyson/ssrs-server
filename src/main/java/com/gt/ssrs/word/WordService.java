@@ -49,7 +49,7 @@ public class WordService {
         return wordDao.loadWord(id);
     }
 
-    public List<Word> loadWords(Collection<String> ids) {
+    public List<Word> loadWords(List<String> ids) {
         return wordDao.loadWords(ids);
     }
 
@@ -175,7 +175,7 @@ public class WordService {
         return null;
     }
 
-    public void deleteWords(String lexiconId, Collection<String> wordIds, String username) {
+    public void deleteWords(String lexiconId, List<String> wordIds, String username) {
         List<Word> wordsToDelete = wordDao.loadWords(wordIds)
                 .stream()
                 .filter(word -> word.lexiconId().equals(lexiconId) && word.owner().equals(username))

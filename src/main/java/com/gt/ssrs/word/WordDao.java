@@ -13,7 +13,7 @@ public interface WordDao {
 
     Word loadWord(String wordId);
 
-    List<Word> loadWords(Collection<String> wordIds);
+    List<Word> loadWords(List<String> wordIds);
 
     int createWord(Language language, String lexiconId, Word word);
 

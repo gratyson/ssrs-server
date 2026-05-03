@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
+import java.util.List;
 
 // Service to manage handling deletions of items and their dependencies. This exists in part to avoid
 // circular dependencies in data services, but also to centralize the logic of deleting dependant data
@@ -46,7 +47,7 @@ public class DeletionService {
         lexiconService.deleteLexiconMetadata(lexiconId, username);
     }
 
-    public void deleteWords(String username, String lexiconId, Collection<String> wordIds) {
+    public void deleteWords(String username, String lexiconId, List<String> wordIds) {
         verifyCanEditLexicon(username, lexiconId);
 
         reviewSessionService.deleteWordReviewEvents(lexiconId, wordIds);
