@@ -14,6 +14,22 @@ Parameters:
   TemplateLocation:
     Description: The S3 path to the folder containing the sub-templates to deploy (without a final '/')
     Type: String
+  EnablePings:
+    Description: Whether to create an EventBridge schedule that periodically pings the lambda function to minimize cold starts
+    Type: String
+    Default: DISABLED
+    AllowedValues:
+      - ENABLED
+      - DISABLED
+  SchedulerCronExp:
+    Description: The cron expression to use if scheduling pings
+    Type: String
+    Default: "* 7-22 * * ? *"
+  SchedulerTimeZone:
+    Description: The time zone to use for the scheduler
+    Type: String
+    Default: America/Chicago
+
 
 Outputs:
   RestEndpoint:
@@ -536,3 +552,64 @@ Resources:
       TokenValidityUnits:
         IdToken: seconds
         RefreshToken: seconds
+
+  PingSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      State: !Sub ${EnablePings}
+      ScheduleExpressionTimezone: !Sub ${SchedulerTimeZone}
+      ScheduleExpression: !Sub cron(${SchedulerCronExp})
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt SsrsFunction.Arn
+        RoleArn: !GetAtt PingScheduleRole.Arn
+        Input: !Sub |
+          {
+            "resource": "/ping",
+            "path": "/ping",
+            "httpMethod": "GET",
+            "pathParameters": {
+              "proxy": "/ping"
+            },
+            "headers": {
+              "Accept": "text/html"
+            },
+            "requestContext": {
+              "identity": {
+                "sourceIp": "127.0.0.1"
+              },
+              "path": "/ping",
+              "resourcePath": "/ping",
+              "httpMethod": "GET",
+              "protocol": "HTTP/1.1"
+            }
+          }
+
+
+  PingScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Sub ${AWS::AccountId}
+      Path: /
+      Policies:
+        - PolicyName: PingScheduleRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "lambda:InvokeFunction"
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ssrs-function-${Stage}:*"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ssrs-function-${Stage}"
