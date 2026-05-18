@@ -1,8 +1,12 @@
 package com.gt.ssrs.security;
 
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
 
 public abstract class AuthService {
+
+    private static final String COOKIE_DELIMITER = "|";
 
     private final String passwordValidationRegex;
 
@@ -14,7 +18,9 @@ public abstract class AuthService {
         this.validationPattern = Pattern.compile(this.passwordValidationRegex);
     }
 
-    public abstract String authenticateAndGetToken(String username, String password);
+    public abstract String authenticateAndGetCookieData(String username, String password);
+
+    public abstract String refreshToken(String username, String idToken);
 
     public abstract AuthRequestResponse changeUserPassword(String username, String currentPassword, String newPassword, String reenterNewPassword);
 
@@ -34,5 +40,33 @@ public abstract class AuthService {
         return validationPattern.matcher(password).find();
     }
 
+    protected String buildAuthCookieValue(String idToken, String displayName) {
+        return buildAuthCookieValue(idToken, displayName, null);
+    }
+
+    protected String buildAuthCookieValue(String idToken, String displayName, Instant refreshAfter) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(idToken);
+        builder.append(COOKIE_DELIMITER);
+        builder.append(displayName);
+        if (refreshAfter != null) {
+            builder.append(COOKIE_DELIMITER);
+            builder.append(refreshAfter);
+        }
+
+        return builder.toString();
+    }
+
+    public AuthCookieData parseAuthCookeData(String authCookieValue) {
+        String[] cookiePieces = authCookieValue.split(Pattern.quote(COOKIE_DELIMITER));
+
+        String idToken = cookiePieces[0];
+        String displayName = cookiePieces.length > 1 ? cookiePieces[1] : "";
+        Instant issuedAt = cookiePieces.length > 2 ? Instant.parse(cookiePieces[2]) : null;
+
+        return new AuthCookieData(idToken, displayName, issuedAt);
+    }
+
+    public record AuthCookieData(String idToken, String displayName, Instant refreshAfter) { }
     public record AuthRequestResponse(boolean success, String errorMsg) { }
 }

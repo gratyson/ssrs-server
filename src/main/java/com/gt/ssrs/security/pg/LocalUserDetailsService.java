@@ -17,6 +17,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.UserDetailsManager;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+
 @Component
 public class LocalUserDetailsService extends AuthService {
 
@@ -43,7 +45,7 @@ public class LocalUserDetailsService extends AuthService {
     }
 
     @Override
-    public String authenticateAndGetToken(String username, String password) {
+    public String authenticateAndGetCookieData(String username, String password) {
         Authentication authenticationRequest = UsernamePasswordAuthenticationToken.unauthenticated(username, password);
         Authentication authenticationResponse;
 
@@ -54,9 +56,16 @@ public class LocalUserDetailsService extends AuthService {
         }
 
         if (authenticationResponse.isAuthenticated()) {
-            return jwtService.generateToken(username);
+            String idToken = jwtService.generateToken(username);
+            return buildAuthCookieValue(idToken, username);
         }
 
+        return "";
+    }
+
+    @Override
+    public String refreshToken(String username, String idToken) {
+        // Refresh not supported in non-AWS currently
         return "";
     }
 

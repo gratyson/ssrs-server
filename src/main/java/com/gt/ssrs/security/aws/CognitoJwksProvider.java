@@ -1,4 +1,4 @@
-package com.gt.ssrs.filter.awslocal;
+package com.gt.ssrs.security.aws;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,14 +90,14 @@ public class CognitoJwksProvider {
         return parseKeys(response.body());
     }
 
-    private Map<String, PublicKey> parseKeys(String jwksStr) throws IOException, GeneralSecurityException {
+    private Map<String, PublicKey> parseKeys(String jwksStr) throws GeneralSecurityException {
         ObjectMapper mapper = new ObjectMapper();
         JsonNode node = mapper.readTree(jwksStr);
 
         return extractKeys(node.get(KEYS_NODE_NAME).values());
     }
 
-    private Map<String, PublicKey> extractKeys(Collection<JsonNode> nodes) throws GeneralSecurityException {
+    private Map<String, PublicKey> extractKeys(Collection<JsonNode> nodes) {
         Map<String, PublicKey> keys = new HashMap<>();
 
         for(JsonNode node : nodes) {

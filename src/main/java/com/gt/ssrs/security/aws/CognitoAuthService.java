@@ -13,6 +13,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 
@@ -28,30 +30,43 @@ public class CognitoAuthService extends AuthService {
     private static final String SECRET_HASH_AUTH_PARAM = "SECRET_HASH";
 
     private final CognitoIdentityProviderClient cognitoIdentityProviderClient;
+    private final CognitoJwsParser cognitoJwsParser;
+    private final UserSessionDataDaoDDB userSessionDataDao;
     private final String clientId;
     private final String userPoolId;
     private final String passwordValidationMessage;
+    private final Duration refreshAfter;
 
+    private String clientSecret;
     private Mac mac;
 
     @Autowired
     public CognitoAuthService(CognitoIdentityProviderClient cognitoIdentityProviderClient,
+                              CognitoJwsParser cognitoJwsParser,
+                              UserSessionDataDaoDDB userSessionDataDao,
                               @Value("${aws.cognito.clientId}") String clientId,
                               @Value("${aws.cognito.userPoolId}") String userPoolId,
                               @Value("${ssrs.auth.validation.regex}") String passwordValidationRegex,
-                              @Value("${ssrs.auth.validation.message}") String passwordValidationMessage) {
+                              @Value("${ssrs.auth.validation.message}") String passwordValidationMessage,
+                              @Value("${ssrs.auth.refreshAfterMillis}") long refreshAfterMillis) {
         super(passwordValidationRegex);
 
         this.cognitoIdentityProviderClient = cognitoIdentityProviderClient;
+        this.cognitoJwsParser = cognitoJwsParser;
+        this.userSessionDataDao = userSessionDataDao;
+
         this.clientId = clientId;
         this.userPoolId = userPoolId;
         this.passwordValidationMessage = passwordValidationMessage;
+        this.refreshAfter = Duration.ofMillis(refreshAfterMillis);
 
-        this.mac = null;  // requires a callout to Cognito to build, so defer until after instantiation
+        // requires a callout to Cognito to build, so defer until after instantiation
+        this.clientSecret = null;
+        this.mac = null;
     }
 
     @Override
-    public String authenticateAndGetToken(String username, String password) {
+    public String authenticateAndGetCookieData(String username, String password) {
         AdminInitiateAuthRequest request = AdminInitiateAuthRequest.builder()
                 .clientId(clientId)
                 .userPoolId(userPoolId)
@@ -66,14 +81,47 @@ public class CognitoAuthService extends AuthService {
         try {
             response = cognitoIdentityProviderClient.adminInitiateAuth(request);
         } catch (NotAuthorizedException ex) {
+            log.warn("Authentication failed with message: " + ex.getMessage());
             return "";
         }
 
-        if (response == null || response.authenticationResult() == null) {
+        if (response != null && response.authenticationResult() != null) {
+            String idToken = response.authenticationResult().idToken();
+            if (idToken != null && idToken != "") {
+                storeTokens(response.authenticationResult());
+                return buildAuthCookieValue(idToken, username, getRefreshAfter(response.authenticationResult()));
+            }
+        }
+
+        return "";
+    }
+
+    @Override
+    public String refreshToken(String username, String idToken) {
+        String refreshToken = getCurrentRefreshToken(idToken);
+        if (refreshToken == null || refreshToken.isBlank()) {
             return "";
         }
 
-        return response.authenticationResult().idToken();
+        GetTokensFromRefreshTokenRequest request = GetTokensFromRefreshTokenRequest.builder()
+                .clientId(clientId)
+                .clientSecret(getUserPoolClientSecret())
+                .refreshToken(refreshToken)
+                .build();
+
+        GetTokensFromRefreshTokenResponse response = cognitoIdentityProviderClient.getTokensFromRefreshToken(request);
+
+        if (response != null && response.authenticationResult() != null) {
+            String newIdToken = response.authenticationResult().idToken();
+            if (newIdToken != null && newIdToken != "") {
+                storeTokens(response.authenticationResult(), refreshToken);
+                return buildAuthCookieValue(newIdToken, username, Instant.now().plus(refreshAfter));
+            }
+        }
+
+        // If the refresh failed, one likely cause is the refresh token expired. No need to log the user out immediately,
+        // but remove the next refresh time from the cookie so it doesn't try to refresh again
+        return buildAuthCookieValue(idToken, username);
     }
 
     @Override
@@ -110,7 +158,7 @@ public class CognitoAuthService extends AuthService {
     }
 
     private boolean validateCorrectPassword(String username, String password) {
-        String accessToken = authenticateAndGetToken(username, password);
+        String accessToken = authenticateAndGetCookieData(username, password);
 
         return accessToken != null && !accessToken.isBlank();
     }
@@ -164,13 +212,57 @@ public class CognitoAuthService extends AuthService {
     }
 
     private String getUserPoolClientSecret() {
-        DescribeUserPoolClientRequest request = DescribeUserPoolClientRequest.builder()
-                .userPoolId(userPoolId)
-                .clientId(clientId)
-                .build();
+        if (clientSecret == null) {
+            DescribeUserPoolClientRequest request = DescribeUserPoolClientRequest.builder()
+                    .clientId(clientId)
+                    .userPoolId(userPoolId)
+                    .build();
 
-        DescribeUserPoolClientResponse response = cognitoIdentityProviderClient.describeUserPoolClient(request);
+            DescribeUserPoolClientResponse response = cognitoIdentityProviderClient.describeUserPoolClient(request);
 
-        return response.userPoolClient().clientSecret();
+            if (response.userPoolClient() != null) {
+                clientSecret = response.userPoolClient().clientSecret() != null ? response.userPoolClient().clientSecret() : "";
+            }
+        }
+
+        return clientSecret;
+    }
+
+    private void storeTokens(AuthenticationResultType authenticationResult) {
+        storeTokens(authenticationResult, null);
+    }
+
+    private void storeTokens(AuthenticationResultType authenticationResult, String refreshToken) {
+        String idToken = authenticationResult.idToken();
+
+        if (idToken != null && !idToken.isBlank()) {
+            String userId = cognitoJwsParser.extractUserId(idToken);
+            if (userId != null && !userId.isBlank()) {
+                DDBUserSessionData userSessionData = DDBUserSessionData.builder()
+                        .userId(userId)
+                        .idToken(idToken)
+                        .accessToken(authenticationResult.accessToken())
+                        .refreshToken(refreshToken != null ? refreshToken : authenticationResult.refreshToken())  // refreshing doesn't return the refresh token itself
+                        .expirationInstant(Instant.now().plusSeconds(authenticationResult.expiresIn()))
+                        .build();
+
+                userSessionDataDao.saveUserSessionData(userSessionData);
+            }
+        }
+    }
+
+    private Instant getRefreshAfter(AuthenticationResultType authenticationResult) {
+        String refreshToken = authenticationResult.refreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return null;
+        }
+
+        return Instant.now().plus(refreshAfter);
+    }
+
+    private String getCurrentRefreshToken(String idToken) {
+        String userId = cognitoJwsParser.extractUserId(idToken);
+        DDBUserSessionData userSessionData = userSessionDataDao.loadUserSessionData(userId);
+        return userSessionData.refreshToken();
     }
 }

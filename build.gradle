@@ -23,13 +23,13 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.kordamp.gradle:jacoco-gradle-plugin:0.47.0'
 
+	implementation platform('io.jsonwebtoken:jjwt-bom:0.13.0')
+	implementation 'io.jsonwebtoken:jjwt-api'
+	implementation 'io.jsonwebtoken:jjwt-impl'
+	implementation 'io.jsonwebtoken:jjwt-jackson'
+
 	if (!project.hasProperty('build-aws')) {
 		implementation 'org.springframework.boot:spring-boot-starter-security'  // Security is configured on API Gateway if running within AWS
-
-		implementation platform('io.jsonwebtoken:jjwt-bom:0.13.0')
-		implementation 'io.jsonwebtoken:jjwt-api'
-		implementation 'io.jsonwebtoken:jjwt-impl'
-		implementation 'io.jsonwebtoken:jjwt-jackson'
 	}
 
 	if (!project.hasProperty('build-aws') && !project.hasProperty('build-aws-local')) {

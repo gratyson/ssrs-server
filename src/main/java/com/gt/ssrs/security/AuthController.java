@@ -12,41 +12,47 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+
 @RestController
 @RequestMapping("/rest/auth")
 public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
+
+
     private final AuthService authService;
     private final String tokenCookieName;
-    private final String displayNameCookieName;
     private final long cookieExpirySec;
     private final boolean allowUserRegistration;
 
     @Autowired
     public AuthController(AuthService authService,
                           @Value("${server.jwt.tokenCookieName}") String tokenCookieName,
-                          @Value("${server.jwt.displayNameCookieName}") String displayNameCookieName,
                           @Value("${server.jwt.cookieExpirySec}") long cookieExpirySec,
                           @Value("${ssrs.security.allowUserRegistration}") boolean allowUserRegistration) {
 
         this.authService = authService;
         this.tokenCookieName = tokenCookieName;
-        this.displayNameCookieName = displayNameCookieName;
         this.cookieExpirySec = cookieExpirySec;
         this.allowUserRegistration = allowUserRegistration;
     }
 
     @GetMapping("/username")
-    public String getLoggedInUsername(@AuthenticatedUser String userId, HttpServletRequest httpServletRequest) {
+    public String getLoggedInUsername(@AuthenticatedUser String userId, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
         if (userId == null || userId.isBlank()) {
             return "";
         }
 
-        String displayName = getDisplayNameFromCookie(httpServletRequest);
-        if (displayName != null && !displayName.isBlank()) {
-            return displayName;
+        AuthService.AuthCookieData authCookieData = getAuthCookieData(httpServletRequest);
+
+        // Ideally refreshing tokens should be in a filter, however aws-serverless-java-container-springboot
+        // doesn't support filters. This function is the next most logical location.
+        refreshTokenIfNeeded(authCookieData, httpServletResponse);
+
+        if (authCookieData.displayName() != null && !authCookieData.displayName().isBlank()) {
+            return authCookieData.displayName();
         }
 
         // Fallback in case the username cookie is not set -- need to return a value so the client knows the user is logged in
@@ -60,8 +66,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public void logout(HttpServletResponse httpServletResponse) {
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildAuthTokenCookie(null, 0).toString());
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildDisplayNameCookie(null, 0).toString());
+        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildCookie(tokenCookieName, "", 0).toString());
     }
 
     @GetMapping("/canRegister")
@@ -91,7 +96,7 @@ public class AuthController {
             return new ChangePasswordResponse(false, "User is not authenticated");
         }
 
-        String displayName = getDisplayNameFromCookie(httpServletRequest);
+        String displayName = getAuthCookieData(httpServletRequest).displayName();
 
         AuthService.AuthRequestResponse authRequestResponse = authService.changeUserPassword(
                 displayName,
@@ -103,23 +108,14 @@ public class AuthController {
     }
 
     private LoginResponse loginAndSetCookies(String username, String password, HttpServletResponse httpServletResponse) {
-        String accessToken = authService.authenticateAndGetToken(username, password);
+        String authCookieData = authService.authenticateAndGetCookieData(username, password);
 
-        if (accessToken == null || accessToken.isBlank()) {
+        if (authCookieData == null || authCookieData.isBlank()) {
             return new LoginResponse(false, "Login unsuccessful");
         }
 
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildAuthTokenCookie(accessToken, cookieExpirySec).toString());
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildDisplayNameCookie(username, cookieExpirySec).toString());
+        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildCookie(tokenCookieName, authCookieData, cookieExpirySec).toString());
         return new LoginResponse(true, "");
-    }
-
-    private ResponseCookie buildAuthTokenCookie(String token, long cookieExpirySec) {
-        return buildCookie(tokenCookieName, token, cookieExpirySec);
-    }
-
-    private ResponseCookie buildDisplayNameCookie(String displayName, long cookieExpirySec) {
-        return buildCookie(displayNameCookieName, displayName, cookieExpirySec);
     }
 
     private ResponseCookie buildCookie(String cookieName, String cookieValue, long cookieExpirySec) {
@@ -130,14 +126,23 @@ public class AuthController {
                 .build();
     }
 
-    private String getDisplayNameFromCookie(HttpServletRequest httpServletRequest) {
+    private AuthService.AuthCookieData getAuthCookieData(HttpServletRequest httpServletRequest) {
         for (Cookie cookie : httpServletRequest.getCookies()) {
-            if (cookie.getName().equals(displayNameCookieName)) {
-                return cookie.getValue();
+            if (cookie.getName().equals(tokenCookieName)) {
+                return authService.parseAuthCookeData(cookie.getValue());
             }
         }
 
-        return "";
+        return new AuthService.AuthCookieData("", "", null);
+    }
+
+    private void refreshTokenIfNeeded(AuthService.AuthCookieData authCookieData, HttpServletResponse httpServletResponse) {
+        if (authCookieData.refreshAfter() != null && Instant.now().isAfter(authCookieData.refreshAfter())) {
+            String newAuthCookieData = authService.refreshToken(authCookieData.displayName(), authCookieData.idToken());
+            if (newAuthCookieData != null && newAuthCookieData != "") {
+                httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, buildCookie(tokenCookieName, newAuthCookieData, cookieExpirySec).toString());
+            }
+        }
     }
 
     public record LoginRequest(String username, String password) { }
