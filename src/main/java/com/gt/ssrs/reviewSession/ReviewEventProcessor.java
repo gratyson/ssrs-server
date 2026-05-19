@@ -67,7 +67,7 @@ public class ReviewEventProcessor {
             Language language = Language.getLanguageById(lexiconService.getLexiconMetadata(lexiconId).languageId());
             Map<String, List<ReviewEvent>> eventsByWord = allEvents.stream().collect(Collectors.groupingBy(ReviewEvent::wordId));
 
-            Map<String, Word> words = wordService.loadWords(eventsByWord.keySet()).stream().collect(Collectors.toMap(word -> word.id(), word -> word));
+            Map<String, Word> words = wordService.loadWords(List.copyOf(eventsByWord.keySet())).stream().collect(Collectors.toMap(word -> word.id(), word -> word));
             Map<String, WordReviewHistory> histories = wordReviewHistoryService.getWordReviewHistory(lexiconId, username, words.keySet()).stream().collect(Collectors.toMap(history -> history.wordId(), history -> history));
 
             eventsByWord.forEach((wordId, eventList) -> {

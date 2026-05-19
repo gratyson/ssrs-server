@@ -344,7 +344,7 @@ public class WordDaoDDB implements WordDao {
 
     @Override
     public void setAudioFileNameForWords(Map<String, List<String>> audioFileNamesByWordId) {
-        List<DDBWord> existingWords = loadDdbWords(audioFileNamesByWordId.keySet());
+        List<DDBWord> existingWords = loadDdbWords(List.copyOf(audioFileNamesByWordId.keySet()));
 
         WriteBatch.Builder<DDBWord> batchBuilder = WriteBatch.builder(DDBWord.class).mappedTableResource(wordTable);
         for (DDBWord existingWord : existingWords) {
