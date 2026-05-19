@@ -42,8 +42,8 @@ public class BlobDaoS3 implements BlobDao {
     private static final String AUDIO_CONTENT_DISPOSITION_TYPE = "audio";
     private static final String IMAGE_CONTENT_DISPOSITION_TYPE = "image";
 
-    private static final Duration SIGNATURE_DURATION = Duration.ofDays(7);
-    private static final Duration EXTERNAL_DURATION_BUFFER = Duration.ofMinutes(1);
+    private static final Duration SIGNATURE_DURATION = Duration.ofHours(12);
+    private static final Duration EXTERNAL_DURATION_BUFFER = Duration.ofMinutes(5);
 
     private static final Duration ASYNC_PUT_OBJECT_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration ASYNC_PUT_OBJECT_MIN_TIMEOUT = Duration.ofSeconds(1);
