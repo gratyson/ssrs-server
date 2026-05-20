@@ -60,12 +60,12 @@ public class ReviewEventProcessorTests {
         when(lexiconService.getLexiconMetadata(LEXICON_ID)).thenReturn(
                 new LexiconMetadata(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), ""));
 
-        when(wordService.loadWords(Set.of(REVIEW_WORD_ID, LEARNING_WORD_ID))).thenReturn(List.of(
+        when(wordService.loadWords(List.of(REVIEW_WORD_ID, LEARNING_WORD_ID))).thenReturn(List.of(
                 buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji")),
                 buildWord(LEARNING_WORD_ID, Map.of("kana", "learningKana", "meaning", "learningMeaning", "kanji", "learningKanji"))));
-        when(wordService.loadWords(Set.of(LEARNING_WORD_ID))).thenReturn(List.of(
+        when(wordService.loadWords(List.of(LEARNING_WORD_ID))).thenReturn(List.of(
                 buildWord(LEARNING_WORD_ID, Map.of("kana", "learningKana", "meaning", "learningMeaning", "kanji", "learningKanji"))));
-        when(wordService.loadWords(Set.of(REVIEW_WORD_ID))).thenReturn(List.of(
+        when(wordService.loadWords(List.of(REVIEW_WORD_ID))).thenReturn(List.of(
                 buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji"))));
 
         WordReviewHistory learningWordHistory = new WordReviewHistory(LEXICON_ID, TEST_USERNAME, LEARNING_WORD_ID, false, null, null, null, 0, null, Map.of());
@@ -155,7 +155,7 @@ public class ReviewEventProcessorTests {
     public void testProcessEvents_NotReviewOrLearn() {
         String wordId = UUID.randomUUID().toString();
 
-        when(wordService.loadWords(Set.of(wordId))).thenReturn(List.of(
+        when(wordService.loadWords(List.of(wordId))).thenReturn(List.of(
                 buildWord(wordId, Map.of("kana", "kanaVal", "meaning", "meaningVal"))));
 
         List<ReviewEvent> events = List.of(buildReviewEvent(
@@ -461,7 +461,7 @@ public class ReviewEventProcessorTests {
 
     @Test
     public void testProcess_OnlyOneValidRelationship() {
-        when(wordService.loadWords(Set.of(REVIEW_WORD_ID))).thenReturn(List.of(
+        when(wordService.loadWords(List.of(REVIEW_WORD_ID))).thenReturn(List.of(
                 buildWord(REVIEW_WORD_ID, Map.of("kana", "kanaVal", "meaning", "meaningVal"))));
 
         Instant reviewInstant = Instant.now();
@@ -598,7 +598,7 @@ public class ReviewEventProcessorTests {
                         LAST_TEST_RELATIONSHIP_ID, Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), STANDARD_INCORRECT_BOOST, Duration.ofSeconds((long)(REVIEW_WORD_LAST_DELAY_SEC * 1.1)),
                         Map.of(TEST_LANGUAGE.getReviewTestRelationships().get(0).getId(), new TestHistory(1, 1, 1)))));
 
-        when(wordService.loadWords(Set.of(REVIEW_WORD_ID))).thenReturn(List.of(
+        when(wordService.loadWords(List.of(REVIEW_WORD_ID))).thenReturn(List.of(
                 buildWord(REVIEW_WORD_ID, Map.of("kana", "kanaVal", "meaning", "meaningVal", "kanji", "kanjiVal"))));
 
         Instant reviewInstant = Instant.now();

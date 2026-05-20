@@ -1,7 +1,6 @@
 package com.gt.ssrs.security;
 
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
 
 public abstract class AuthService {

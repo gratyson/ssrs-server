@@ -1,5 +1,6 @@
 package com.gt.ssrs.filter.pg;
 
+import com.gt.ssrs.security.AuthService;
 import com.gt.ssrs.security.pg.JwtService;
 import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.FilterChain;
@@ -27,12 +28,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final static Logger log = LoggerFactory.getLogger(JwtAuthFilter.class);
 
+    private final AuthService authService;
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final String jwtCookieName;
 
     @Autowired
-    public JwtAuthFilter(JwtService jwtService, UserDetailsService userDetailsService, @Value("${server.jwt.tokenCookieName}") String jwtCookieName) {
+    public JwtAuthFilter(AuthService authService, JwtService jwtService, UserDetailsService userDetailsService, @Value("${server.jwt.tokenCookieName}") String jwtCookieName) {
+        this.authService = authService;
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
         this.jwtCookieName = jwtCookieName;
@@ -44,13 +47,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
                 if (cookie.getName().equals(jwtCookieName)) {
-                    token = cookie.getValue();
+                    token = authService.parseAuthCookeData(cookie.getValue()).idToken();
                 }
             }
         }
 
         if (token != null && !token.isBlank()) {
-
             String username;
             try {
                 username = jwtService.extractUsername(token);
