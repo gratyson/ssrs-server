@@ -321,7 +321,9 @@ public class WordDaoDDB implements WordDao {
     public int setAudioFileNameForWord(String wordId, String audioFileName) {
         DDBWord existingWord = wordTable.getItem(Key.builder().partitionValue(wordId).build());
 
-        // TODO: check ownership
+        if (existingWord == null) {
+            return 0;
+        }
 
         List<String> audioFilesToSave = new ArrayList<>();
         if (existingWord.audioFiles() != null) {

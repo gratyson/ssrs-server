@@ -18,7 +18,7 @@ public interface LexiconDao {
 
     List<LexiconMetadata> getLexiconMetadatas(Collection<String> ids);
 
-    int updateLexiconMetadata(LexiconMetadata lexicon);
+    int updateLexiconMetadata(String username, LexiconMetadata lexicon);
 
     int createLexiconMetadata(LexiconMetadata lexicon);
 

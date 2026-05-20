@@ -1,7 +1,6 @@
 package com.gt.ssrs.lexicon.aws;
 
 import com.gt.ssrs.word.aws.DDBWord;
-import software.amazon.awssdk.enhanced.dynamodb.mapper.Order;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 
 import java.time.Instant;
@@ -79,7 +78,6 @@ public class DDBLexiconMetadata {
     }
 
     @DynamoDbAttribute(CREATE_INSTANT_ATTRIBUTE_NAME)
-    @DynamoDbSecondarySortKey(indexNames = { DDBWord.CREATE_INSTANT_INDEX_NAME }, order = Order.FIRST)
     public Instant createInstant() {
         return createInstant;
     }

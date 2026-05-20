@@ -73,7 +73,7 @@ public class LexiconService {
 
                 String imageFileName = updateImageBlobDataAsNeeded(lexiconMetadata.id(), lexiconMetadata, newImageFile);
                 LexiconMetadata lexiconMetadataToSave = getLexiconMetadataToSave(lexiconMetadata.id(), username, lexiconMetadata, imageFileName);
-                int rowsUpdated = lexiconDao.updateLexiconMetadata(lexiconMetadataToSave);
+                int rowsUpdated = lexiconDao.updateLexiconMetadata(username, lexiconMetadataToSave);
 
                 if (rowsUpdated == 0) {
                     log.warn("Unable to update lexicon metadata for lexicon " + lexiconMetadata.id());

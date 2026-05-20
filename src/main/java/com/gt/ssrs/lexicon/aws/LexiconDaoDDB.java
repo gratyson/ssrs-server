@@ -72,14 +72,16 @@ public class LexiconDaoDDB implements LexiconDao {
     }
 
     @Override
-    public int updateLexiconMetadata(LexiconMetadata lexicon) {
+    public int updateLexiconMetadata(String username, LexiconMetadata lexicon) {
         DDBLexiconMetadata existingLexiconMetadata = lexiconTable.getItem(Key.builder().partitionValue(lexicon.id()).build());
 
         if (existingLexiconMetadata == null) {
             return 0;
         }
 
-        // TODO: Verify owner?
+        if (!existingLexiconMetadata.owner().equals(username) || !existingLexiconMetadata.owner().equals(lexicon.owner())) {
+            throw new SecurityException("User " + username + " attempting to modify non-owned lexicon");
+        }
 
         lexiconTable.updateItem(DDBLexiconConverter.convertLexiconMetadata(lexicon));
 

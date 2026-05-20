@@ -1,8 +1,5 @@
 package com.gt.ssrs.word.aws;
 
-import com.gt.ssrs.language.Language;
-import com.gt.ssrs.language.WordElement;
-import com.gt.ssrs.util.HashUtil;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.Order;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 
@@ -70,7 +67,6 @@ public class DDBWord {
 
     @DynamoDbAttribute(LEXICON_ID_ATTRIBUTE_NAME)
     @DynamoDbSecondaryPartitionKey(indexNames = { KANA_INDEX_NAME, KANJI_INDEX_NAME, MEANING_INDEX_NAME, CREATE_INSTANT_INDEX_NAME })
-    @DynamoDbSecondarySortKey(indexNames = { DDBWord.DEDUPE_INDEX_NAME })
     public String lexiconId() {
         return lexiconId;
     }

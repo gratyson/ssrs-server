@@ -25,8 +25,8 @@ public class LexiconDaoPG implements LexiconDao {
     private static final String CREATE_LEXICON_METADATA_SQL = "INSERT INTO lexicon_header (id, owner, title, lang, description, image_file_name)" +
             "VALUES (:id, :owner, :title, :lang, :description, :imageFileName)";
     private static final String UPDATE_LEXICON_METADATA_SQL = "UPDATE lexicon_header " +
-            "SET owner = :owner, title = :title, lang = :lang, description = :description, image_file_name = :imageFileName " +
-            "WHERE id = :id";
+            "SET title = :title, lang = :lang, description = :description, image_file_name = :imageFileName " +
+            "WHERE id = :id AND owner = :owner";
     private static final String UPDATE_LEXICON_METADATA_NO_IMAGE_UPDATE_SQL = "UPDATE lexicon_header " +
             "SET title = :title, lang = :lang, description = :description " +
             "WHERE id = :id AND owner = :owner";
@@ -77,7 +77,7 @@ public class LexiconDaoPG implements LexiconDao {
     }
 
     @Override
-    public int updateLexiconMetadata(LexiconMetadata lexicon) {
+    public int updateLexiconMetadata(String username, LexiconMetadata lexicon) {
         return template.update(UPDATE_LEXICON_METADATA_SQL, Map.of(
                 "id", lexicon.id(),
                 "owner", lexicon.owner(),
