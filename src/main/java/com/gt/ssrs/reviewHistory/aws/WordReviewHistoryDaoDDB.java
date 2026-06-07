@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
@@ -179,44 +180,46 @@ public class WordReviewHistoryDaoDDB implements WordReviewHistoryDao {
 
     @Override
     public Map<LearnedStatus, List<String>> getWordIdsForUserByLearned(String lexiconId, String username) {
-        QueryRequest queryRequest = QueryRequest.builder()
-                .tableName(DDBWordReviewHistory.TABLE_NAME)
-                .indexName(DDBWordReviewHistory.BY_LEARNED_INDEX_NAME)
-                .keyConditionExpression("#lexiconId = :lexiconId AND #username = :username")
-                .expressionAttributeNames(Map.of(
-                        "#lexiconId", DDBWordReviewHistory.LEXICON_ID_ATTRIBUTE_NAME,
-                        "#username", DDBWordReviewHistory.USERNAME_ATTRIBUTE_NAME))
-                .expressionAttributeValues(Map.of(
-                        ":lexiconId", AttributeValue.builder().s(lexiconId).build(),
-                        ":username", AttributeValue.builder().s(username).build()))
-                .projectionExpression(String.join(", ", List.of(
+        QueryEnhancedRequest queryRequest = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(k -> k
+                        .addPartitionValue(lexiconId)
+                        .addSortValue(username)))
+                .attributesToProject(List.of(
                         DDBWordReviewHistory.LEARNED_ATTRIBUTE_NAME,
-                        DDBWordReviewHistory.WORD_ID_ATTRIBUTE_NAME)))
+                        DDBWordReviewHistory.WORD_ID_ATTRIBUTE_NAME))
                 .build();
 
-        return getWordIdsByLearnedQueryResponse(dynamoDbClient.query(queryRequest));
+        SdkIterable<Page<DDBWordReviewHistory>> response = wordReviewHistoryTable.index(DDBWordReviewHistory.BY_LEARNED_INDEX_NAME).query(queryRequest);
+
+        return response.stream()
+                .flatMap(page -> page.items().stream())
+                .collect(Collectors.groupingBy(DDBWordReviewHistory::learned, Collectors.collectingAndThen(Collectors.toList(), wordReviewHistory -> wordReviewHistory
+                        .stream()
+                        .map(w -> w.wordId())
+                        .distinct()
+                        .toList())));
     }
 
     private List<String> getWordIdsByLearned(String lexiconId, String username, LearnedStatus learnedStatus, int limit) {
-        QueryRequest.Builder queryRequestBuilder = QueryRequest.builder()
-                .tableName(DDBWordReviewHistory.TABLE_NAME)
-                .indexName(DDBWordReviewHistory.BY_LEARNED_INDEX_NAME)
-                .keyConditionExpression("#lexiconId = :lexiconId AND #username = :username AND #learned = :learned")
-                .expressionAttributeNames(Map.of(
-                        "#lexiconId", DDBWordReviewHistory.LEXICON_ID_ATTRIBUTE_NAME,
-                        "#username", DDBWordReviewHistory.USERNAME_ATTRIBUTE_NAME,
-                        "#learned", DDBWordReviewHistory.LEARNED_ATTRIBUTE_NAME))
-                .expressionAttributeValues(Map.of(":lexiconId", AttributeValue.builder().s(lexiconId).build(),
-                        ":username", AttributeValue.builder().s(username).build(),
-                        ":learned", AttributeValue.builder().s(learnedStatus.name()).build()))
-                .projectionExpression(DDBWordReviewHistory.WORD_ID_ATTRIBUTE_NAME)
+        QueryEnhancedRequest.Builder queryRequestBuilder = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(k -> k
+                        .addPartitionValue(lexiconId)
+                        .addSortValue(username)
+                        .addSortValue(learnedStatus.name())))
+                .attributesToProject(List.of(
+                        DDBWordReviewHistory.WORD_ID_ATTRIBUTE_NAME))
                 .scanIndexForward(true);
 
         if (limit > 0) {
             queryRequestBuilder.limit(limit);
         }
 
-        return getWordIdsFromQueryResponse(dynamoDbClient.query(queryRequestBuilder.build()));
+        SdkIterable<Page<DDBWordReviewHistory>> response = wordReviewHistoryTable.index(DDBWordReviewHistory.BY_LEARNED_INDEX_NAME).query(queryRequestBuilder.build());
+
+        return response.stream()
+                .flatMap(page -> page.items().stream())
+                .map(ddbWordReviewHistory -> ddbWordReviewHistory.wordId())
+                .toList();
     }
 
     private List<String> getWordIdsFromQueryResponse(QueryResponse queryResponse) {
@@ -247,20 +250,19 @@ public class WordReviewHistoryDaoDDB implements WordReviewHistoryDao {
     }
 
     private List<UserWordIdTuple> getUserAndWordIdsForLexicon(String lexiconId) {
-        QueryRequest queryRequest = QueryRequest.builder()
-                .tableName(DDBWordReviewHistory.TABLE_NAME)
-                .indexName(DDBWordReviewHistory.BY_LEARNED_INDEX_NAME)
-                .keyConditionExpression("#lexiconId = :lexiconId")
-                .expressionAttributeNames(Map.of("#lexiconId", "lexiconId"))
-                .expressionAttributeValues(Map.of(":lexiconId", AttributeValue.builder().s(lexiconId).build()))
-                .projectionExpression("username, wordId")
+        QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(k -> k
+                        .addPartitionValue(lexiconId)))
+                .attributesToProject(List.of(
+                        DDBWordReviewHistory.USERNAME_ATTRIBUTE_NAME,
+                        DDBWordReviewHistory.WORD_ID_ATTRIBUTE_NAME))
                 .build();
 
-        QueryResponse response = dynamoDbClient.query(queryRequest);
+        SdkIterable<Page<DDBWordReviewHistory>> response = wordReviewHistoryTable.index(DDBWordReviewHistory.BY_LEARNED_INDEX_NAME).query(request);
 
-        return response.items().stream()
-                .map(resp -> new UserWordIdTuple(resp.get("username").s(), resp.get("wordId").s()))
-                .distinct()
+        return response.stream()
+                .flatMap(page -> page.items().stream())
+                .map(ddbWordReviewHistory -> new UserWordIdTuple(ddbWordReviewHistory.username(), ddbWordReviewHistory.wordId()))
                 .toList();
     }
 

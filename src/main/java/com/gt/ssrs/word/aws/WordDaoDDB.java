@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.enhanced.dynamodb.*;
 import software.amazon.awssdk.enhanced.dynamodb.model.*;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
 import java.time.Instant;
@@ -33,7 +32,6 @@ public class WordDaoDDB implements WordDao {
     private static final int ATTRIBUTE_FILTER_LIMIT_MULTIPLER = 4;
     private static final int AUDIO_FILTER_LIMIT_MULTIPLER = 2;
 
-    private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final int maxReadBatchSize;
     private final int maxWriteBatchSize;
@@ -41,11 +39,9 @@ public class WordDaoDDB implements WordDao {
     private final DynamoDbTable<DDBWord> wordTable;
 
     @Autowired
-    public WordDaoDDB(DynamoDbClient dynamoDbClient,
-                      DynamoDbEnhancedClient dynamoDbEnhancedClient,
+    public WordDaoDDB(DynamoDbEnhancedClient dynamoDbEnhancedClient,
                       @Value("${aws.dynamodb.maxReadBatchSize}") int maxReadBatchSize,
                       @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize) {
-        this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
         this.maxReadBatchSize = maxReadBatchSize;
         this.maxWriteBatchSize = maxWriteBatchSize;

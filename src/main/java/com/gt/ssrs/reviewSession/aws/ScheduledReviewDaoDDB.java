@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.enhanced.dynamodb.*;
 import software.amazon.awssdk.enhanced.dynamodb.model.*;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 import java.time.Duration;
@@ -25,7 +24,6 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
 
     private static final Logger log = LoggerFactory.getLogger(ScheduledReviewDaoDDB.class);
 
-    private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final int deleteAfterDays;
     private final int maxWriteBatchSize;
@@ -34,12 +32,10 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
     private final DynamoDbTable<DDBScheduledReview> scheduledReviewTable;
 
     @Autowired
-    public ScheduledReviewDaoDDB(DynamoDbClient dynamoDbClient,
-                                 DynamoDbEnhancedClient dynamoDbEnhancedClient,
+    public ScheduledReviewDaoDDB(DynamoDbEnhancedClient dynamoDbEnhancedClient,
                                  @Value("${aws.dynamodb.reviews.deleteAfterDays}") int deleteAfterDays,
                                  @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize,
                                  @Value("${aws.dynamodb.maxReadBatchSize}") int maxReadBatchSize) {
-        this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
         this.deleteAfterDays = deleteAfterDays;
         this.maxWriteBatchSize = maxWriteBatchSize;
@@ -170,12 +166,10 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
     @Override
     public int adjustNextReviewTimes(String lexiconId, String username, Duration adjustment) {
         SdkIterable<Page<DDBScheduledReview>> results = scheduledReviewTable.index(DDBScheduledReview.SCHEDULED_REVIEW_BY_LEXICON_INDEX_NAME)
-                .query(QueryConditional.sortGreaterThan(
-                        Key.builder()
-                                .partitionValue(lexiconId)
-                                .sortValue(username)
-                                .sortValue(ScheduledReviewStatus.SCHEDULED.name())
-                                .build()));
+                .query(QueryConditional.keyEqualTo(k -> k
+                        .addPartitionValue(lexiconId)
+                        .addSortValue(username)
+                        .addSortValue(ScheduledReviewStatus.SCHEDULED.name())));
 
         List<DDBScheduledReview> reviewsToSave = results.stream()
                 .flatMap(page -> page.items().stream())
@@ -186,12 +180,14 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
                 .collect(Collectors.toUnmodifiableList());
 
         int processedCnt = 0;
-        for (List<DDBScheduledReview> subList : ListUtil.partitionList(reviewsToSave, maxWriteBatchSize)) {
-            WriteBatch.Builder<DDBScheduledReview> batchBuilder = WriteBatch.builder(DDBScheduledReview.class).mappedTableResource(scheduledReviewTable);
-            subList.forEach(ddbScheduledReview -> batchBuilder.addPutItem(ddbScheduledReview));
+        if (reviewsToSave.size() > 0) {
+            for (List<DDBScheduledReview> subList : ListUtil.partitionList(reviewsToSave, maxWriteBatchSize)) {
+                WriteBatch.Builder<DDBScheduledReview> batchBuilder = WriteBatch.builder(DDBScheduledReview.class).mappedTableResource(scheduledReviewTable);
+                subList.forEach(ddbScheduledReview -> batchBuilder.addPutItem(ddbScheduledReview));
 
-            BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(b -> b.writeBatches(batchBuilder.build()));
-            processedCnt += reviewsToSave.size() - result.unprocessedPutItemsForTable(scheduledReviewTable).size();
+                BatchWriteResult result = dynamoDbEnhancedClient.batchWriteItem(b -> b.writeBatches(batchBuilder.build()));
+                processedCnt += reviewsToSave.size() - result.unprocessedPutItemsForTable(scheduledReviewTable).size();
+            }
         }
         return processedCnt;
     }

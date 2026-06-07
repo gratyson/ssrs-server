@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.enhanced.dynamodb.*;
 import software.amazon.awssdk.enhanced.dynamodb.model.*;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
 import java.time.Duration;
@@ -25,7 +24,6 @@ public class ReviewEventDaoDDB implements ReviewEventDao {
 
     private static final Logger log = LoggerFactory.getLogger(ReviewEventDaoDDB.class);
 
-    private final DynamoDbClient dynamoDbClient;
     private final DynamoDbEnhancedClient dynamoDbEnhancedClient;
     private final int deleteAfterDays;
     private final int maxWriteBatchSize;
@@ -33,11 +31,9 @@ public class ReviewEventDaoDDB implements ReviewEventDao {
     private final DynamoDbTable<DDBReviewEvent> reviewEventsTable;
 
     @Autowired
-    public ReviewEventDaoDDB(DynamoDbClient dynamoDbClient,
-                             DynamoDbEnhancedClient dynamoDbEnhancedClient,
+    public ReviewEventDaoDDB(DynamoDbEnhancedClient dynamoDbEnhancedClient,
                              @Value("${aws.dynamodb.reviews.deleteAfterDays}") int deleteAfterDays,
                              @Value("${aws.dynamodb.maxWriteBatchSize}") int maxWriteBatchSize) {
-        this.dynamoDbClient = dynamoDbClient;
         this.dynamoDbEnhancedClient = dynamoDbEnhancedClient;
         this.deleteAfterDays = deleteAfterDays;
         this.maxWriteBatchSize = maxWriteBatchSize;
