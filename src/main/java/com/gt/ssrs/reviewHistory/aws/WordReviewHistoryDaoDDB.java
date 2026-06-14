@@ -216,8 +216,11 @@ public class WordReviewHistoryDaoDDB implements WordReviewHistoryDao {
 
         SdkIterable<Page<DDBWordReviewHistory>> response = wordReviewHistoryTable.index(DDBWordReviewHistory.BY_LEARNED_INDEX_NAME).query(queryRequestBuilder.build());
 
+        // DDB *should* return the words in a size no more than the specified limit, but on rare
+        // occasions it seems to not do so, so also apply the limit on the returned list
         return response.stream()
                 .flatMap(page -> page.items().stream())
+                .limit(limit > 0 ? limit : Integer.MAX_VALUE)
                 .map(ddbWordReviewHistory -> ddbWordReviewHistory.wordId())
                 .toList();
     }
