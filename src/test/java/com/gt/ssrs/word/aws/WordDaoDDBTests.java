@@ -44,7 +44,6 @@ public class WordDaoDDBTests {
         ddbTestServer = DDBTestServer.withTable(DDBWord.TABLE_NAME, DDBWord.class);
 
         wordDao = new WordDaoDDB(
-                ddbTestServer.dynamoDbClient(),
                 ddbTestServer.dynamoDbEnhancedClient(),
                 MAX_READ_BATCH_SIZE,
                 MAX_WRITE_BATCH_SIZE);

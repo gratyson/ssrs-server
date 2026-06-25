@@ -20,7 +20,7 @@ cp -r $SSRS_CLIENT_DIR/dist/ssrs/browser/* $SSRS_SERVER_DIR/src/main/resources/s
 rm -rf $SSRS_CLIENT_DIR/dist/
 
 cd $SSRS_SERVER_DIR
-./gradlew build
+./gradlew clean build
 
 if [ -n "$(ls -A /home/$SSRS_USER/scripts 2>/dev/null)" ]
 then

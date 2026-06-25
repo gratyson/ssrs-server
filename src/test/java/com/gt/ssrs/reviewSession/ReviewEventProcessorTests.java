@@ -60,13 +60,16 @@ public class ReviewEventProcessorTests {
         when(lexiconService.getLexiconMetadata(LEXICON_ID)).thenReturn(
                 new LexiconMetadata(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), ""));
 
-        when(wordService.loadWords(List.of(REVIEW_WORD_ID, LEARNING_WORD_ID))).thenReturn(List.of(
-                buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji")),
-                buildWord(LEARNING_WORD_ID, Map.of("kana", "learningKana", "meaning", "learningMeaning", "kanji", "learningKanji"))));
-        when(wordService.loadWords(List.of(LEARNING_WORD_ID))).thenReturn(List.of(
-                buildWord(LEARNING_WORD_ID, Map.of("kana", "learningKana", "meaning", "learningMeaning", "kanji", "learningKanji"))));
-        when(wordService.loadWords(List.of(REVIEW_WORD_ID))).thenReturn(List.of(
-                buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji"))));
+        Word reviewWord = buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji"));
+        Word learningWord = buildWord(LEARNING_WORD_ID, Map.of("kana", "learningKana", "meaning", "learningMeaning", "kanji", "learningKanji"));
+
+        when(wordService.loadWords(List.of(LEARNING_WORD_ID))).thenReturn(List.of(learningWord));
+        when(wordService.loadWords(List.of(REVIEW_WORD_ID))).thenReturn(List.of(reviewWord));
+
+        // List order will be indeterminate, simplest way to deal with that is to just handle both orderings
+        when(wordService.loadWords(List.of(REVIEW_WORD_ID, LEARNING_WORD_ID))).thenReturn(List.of(reviewWord, learningWord));
+        when(wordService.loadWords(List.of(LEARNING_WORD_ID, REVIEW_WORD_ID))).thenReturn(List.of(learningWord, reviewWord));
+
 
         WordReviewHistory learningWordHistory = new WordReviewHistory(LEXICON_ID, TEST_USERNAME, LEARNING_WORD_ID, false, null, null, null, 0, null, Map.of());
         WordReviewHistory reviewWordHistory = new WordReviewHistory(LEXICON_ID, TEST_USERNAME, REVIEW_WORD_ID, true, Instant.now().minusSeconds(REVIEW_WORD_LAST_DELAY_SEC), LAST_TEST_RELATIONSHIP_ID, Duration.ofSeconds(REVIEW_WORD_LAST_DELAY_SEC), 0, Duration.ofSeconds(0),
