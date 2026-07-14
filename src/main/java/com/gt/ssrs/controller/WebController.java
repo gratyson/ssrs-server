@@ -13,7 +13,7 @@ public class WebController {
 
     private static final Logger log = LoggerFactory.getLogger(WebController.class);
 
-    @GetMapping("/")
+    @GetMapping({ "/", "/app", "/app/**" })
     public ModelAndView getApp(HttpServletRequest request) {
 
         // Do not delete - it appears that the call to getToken() is necessary for the response to include the CRSF token
