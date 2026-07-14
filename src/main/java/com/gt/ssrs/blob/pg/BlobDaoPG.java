@@ -18,6 +18,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class BlobDaoPG implements BlobDao {
@@ -149,6 +151,11 @@ public class BlobDaoPG implements BlobDao {
     @Override
     public BlobPath getAudioFilePath(String name) {
         return new BlobPath(AUDIO_PATH_PREFIX + name, true, Instant.now().plus(BLOB_PATH_DURATION));
+    }
+
+    @Override
+    public Map<String, BlobPath> getAudioPathBatch(List<String> audioFileNames) {
+        return audioFileNames.stream().collect(Collectors.toMap(audioFileName -> audioFileName, audioFileName -> getAudioFilePath(audioFileName)));
     }
 
     private ByteBuffer loadBlobFile(String loadSql, String name) {

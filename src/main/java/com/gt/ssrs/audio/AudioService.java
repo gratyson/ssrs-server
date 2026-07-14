@@ -38,6 +38,10 @@ public class AudioService {
         return blobDao.getAudioFilePath(audioFileName);
     }
 
+    public Map<String, BlobPath> getAudioPathBatch(List<String> audioFileNames) {
+        return blobDao.getAudioPathBatch(audioFileNames);
+    }
+
     public List<String> getAudioFilesForWord(String wordId) {
         return wordDao.getAudioFileNamesForWord(wordId);
     }

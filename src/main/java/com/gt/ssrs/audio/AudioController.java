@@ -49,6 +49,11 @@ public class AudioController {
         return audioService.getAudioPath(audioFileName);
     }
 
+    @PostMapping(value = "/audioPathBatch")
+    public Map<String, BlobPath> getAudioPathBatch(@RequestBody List<String> audioFileNames) {
+        return audioService.getAudioPathBatch(audioFileNames);
+    }
+
     @GetMapping(value = "/getAudioFilesForWord", produces = "application/json")
     public List<String> GetAudioFilesForWord(@RequestParam("wordId") String wordId) {
         return audioService.getAudioFilesForWord(wordId);

@@ -27,12 +27,8 @@ import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 
 @Component
 public class BlobDaoS3 implements BlobDao {
@@ -127,6 +123,27 @@ public class BlobDaoS3 implements BlobDao {
         String url = getPresignedUrl(audioBucketName, name, SIGNATURE_DURATION);
 
         return new BlobPath(url, false, Instant.now().plus(SIGNATURE_DURATION.minus(EXTERNAL_DURATION_BUFFER)));
+    }
+
+    @Override
+    public Map<String, BlobPath> getAudioPathBatch(List<String> audioFileNames) {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<BlobPath>> audioPathFutures = new ArrayList<>();
+
+            for (String audioFileName : audioFileNames) {
+                audioPathFutures.add(executor.submit(() -> getAudioFilePath(audioFileName)));
+            }
+
+            Map<String, BlobPath> result = new HashMap<>();
+            for (int idx = 0; idx < audioPathFutures.size(); idx++) {
+                result.put(audioFileNames.get(idx), audioPathFutures.get(idx).get());
+            }
+
+            return result;
+        } catch (InterruptedException | ExecutionException e) {
+            log.error("Exception occurred while loading audio paths", e);
+            throw new DaoException("Exception occurred while loading audio paths", e);
+        }
     }
 
     @Override

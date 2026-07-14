@@ -4,6 +4,7 @@ import com.gt.ssrs.blob.model.BlobPath;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 
 public interface BlobDao {
 
@@ -22,6 +23,8 @@ public interface BlobDao {
     ByteBuffer loadAudioFile(String name);
 
     BlobPath getAudioFilePath(String name);
+
+    Map<String, BlobPath> getAudioPathBatch(List<String> audioFileNames);
 
     void deleteAudioFile(String name);
 
