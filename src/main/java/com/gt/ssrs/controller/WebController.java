@@ -19,6 +19,6 @@ public class WebController {
         // Do not delete - it appears that the call to getToken() is necessary for the response to include the CRSF token
         CsrfToken token = (CsrfToken)request.getAttribute("_csrf");
 
-        return new ModelAndView("index.html");
+        return new ModelAndView("forward:/index.html");
     }
 }
