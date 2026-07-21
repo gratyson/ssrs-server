@@ -29,6 +29,10 @@ Parameters:
     Description: The time zone to use for the scheduler
     Type: String
     Default: America/Chicago
+  AdditionalCorsAllowedOrigins:
+    Description: Comma-delimited additional CORS allowed origins (no spaces), e.g. https://localhost:4200/,https://staging.example.com/
+    Type: String
+    Default: ""
 
 
 Outputs:
@@ -38,17 +42,73 @@ Outputs:
       - "https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/${Stage}/"
       - ApiId: !Ref SsrsRestApi
 
+Conditions:
+  HasAdditionalCorsOrigins: !Not
+    - !Equals
+      - !Ref AdditionalCorsAllowedOrigins
+      - ""
+
 
 Resources:
   SsrsImageBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ssrs-image-${Stage}-${UniqueId}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - "GET"
+              - "HEAD"
+            AllowedOrigins:
+              Fn::If:
+                - HasAdditionalCorsOrigins
+                - Fn::Split:
+                   - ","
+                   - Fn::Join:
+                      - ","
+                      - - !Sub
+                          - "https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com"
+                          - ApiId: !Ref SsrsRestApi
+                        - !Ref AdditionalCorsAllowedOrigins
+                - - !Sub
+                    - "https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com"
+                    - ApiId: !Ref SsrsRestApi
+            ExposedHeaders:
+              - "ETag"
+              - "Content-Length"
+              - "Content-Type"
 
   SsrsAudioBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ssrs-audio-${Stage}-${UniqueId}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - "GET"
+              - "HEAD"
+            AllowedOrigins:
+              Fn::If:
+                - HasAdditionalCorsOrigins
+                - Fn::Split:
+                    - ","
+                    - Fn::Join:
+                        - ","
+                        - - !Sub
+                            - "https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com"
+                            - ApiId: !Ref SsrsRestApi
+                          - !Ref AdditionalCorsAllowedOrigins
+                - - !Sub
+                    - "https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com"
+                    - ApiId: !Ref SsrsRestApi
+            ExposedHeaders:
+              - "ETag"
+              - "Content-Length"
+              - "Content-Type"
 
   SsrsFrontendAssetsBucket:
     Type: AWS::S3::Bucket
