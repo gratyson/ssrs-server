@@ -55,11 +55,18 @@ public class LexiconService {
     public LexiconMetadata saveLexiconMetadata(String username, LexiconMetadata lexiconMetadata, MultipartFile newImageFile) {
 
         try {
+            String idToUse;
+            LexiconMetadata oldLexiconMetadata = null;
+            if (lexiconMetadata.id() != null && !lexiconMetadata.id().isEmpty()) {
+                idToUse = lexiconMetadata.id();
+                oldLexiconMetadata = lexiconDao.getLexiconMetadata(lexiconMetadata.id());
+            } else {
+                idToUse = UUID.randomUUID().toString();
+            }
 
-            if (lexiconMetadata.id() == null || lexiconMetadata.id().isEmpty()) {
-                String newId = UUID.randomUUID().toString();
-                String imageFileName = updateImageBlobDataAsNeeded(newId, lexiconMetadata, newImageFile);
-                LexiconMetadata lexiconMetadataToSave = getLexiconMetadataToSave(newId, username, lexiconMetadata, imageFileName);
+            if (oldLexiconMetadata == null) {
+                String imageFileName = updateImageBlobDataAsNeeded(idToUse, lexiconMetadata, newImageFile);
+                LexiconMetadata lexiconMetadataToSave = getLexiconMetadataToSave(idToUse, username, lexiconMetadata, imageFileName);
 
                 if (lexiconDao.createLexiconMetadata(lexiconMetadataToSave) == 0) {
                     log.warn("Unable to create row for new lexicon " + lexiconMetadata.title());
@@ -68,7 +75,6 @@ public class LexiconService {
 
                 return lexiconMetadataToSave;
             } else {
-                LexiconMetadata oldLexiconMetadata = lexiconDao.getLexiconMetadata(lexiconMetadata.id());
                 verifyCanEditLexicon(oldLexiconMetadata, username);
 
                 String imageFileName = updateImageBlobDataAsNeeded(lexiconMetadata.id(), lexiconMetadata, newImageFile);

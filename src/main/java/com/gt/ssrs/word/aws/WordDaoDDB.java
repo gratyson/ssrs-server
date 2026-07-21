@@ -53,6 +53,10 @@ public class WordDaoDDB implements WordDao {
     public Word loadWord(String wordId) {
         DDBWord ddbWord = wordTable.getItem(Key.builder().partitionValue(wordId).build());
 
+        if (ddbWord == null) {
+            return null;
+        }
+
         return DDBWordConverter.convertDDBWord(ddbWord);
     }
 

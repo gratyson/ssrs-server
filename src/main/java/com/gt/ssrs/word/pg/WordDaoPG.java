@@ -133,7 +133,7 @@ public class WordDaoPG implements WordDao {
             return loadedWords.get(0);
         }
 
-        return Word.EMPTY_WORD;
+        return null;
     }
 
     @Override
