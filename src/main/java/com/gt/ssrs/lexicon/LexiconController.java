@@ -130,9 +130,9 @@ public class LexiconController {
     public List<Word> saveWords(@RequestBody SaveWordsRequest saveWordsRequest,
                                 @AuthenticatedUser String username,
                                 HttpServletResponse response) {
-        List<Word> savedWords = wordService.saveWords(saveWordsRequest.words(), saveWordsRequest.lexiconId(), username);
+        List<Word> savedWords = wordService.saveWords(saveWordsRequest.words(), saveWordsRequest.lexiconId(), username, saveWordsRequest.force);
 
-        response.setStatus(HttpServletResponse.SC_ACCEPTED);
+        response.setStatus(HttpServletResponse.SC_OK);
         return savedWords;
     }
 
@@ -148,7 +148,7 @@ public class LexiconController {
                 getLexiconWordsBatchRequest.filters());
     }
 
-    public record SaveWordsRequest(String lexiconId, List<Word> words) { }
+    public record SaveWordsRequest(String lexiconId, List<Word> words, boolean force) { }
     public record DeleteWordsRequest(String lexiconId, List<String> wordIds) { }
     public record GetLexiconWordsBatchRequest(String lexiconId, int count, int offset, Word lastWord, WordFilterOptions filters) { }
     public record LexiconMetadataAndScheduledCounts(LexiconMetadata lexiconMetadata, Map<String, Integer> scheduledReviewCounts, boolean hasWordsToLearn) { }

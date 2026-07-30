@@ -70,7 +70,7 @@ public class WordService {
         return null;
     }
 
-    public List<Word> saveWords(List<Word> words, String lexiconId, String username) {
+    public List<Word> saveWords(List<Word> words, String lexiconId, String username, boolean force) {
         LexiconMetadata lexiconMetadata = lexiconService.getLexiconMetadata(lexiconId);
         verifyCanEditLexicon(lexiconMetadata, username);
 
@@ -88,28 +88,29 @@ public class WordService {
             // After saving, attach the new word to the lexicon as long as it does not duplicate another word in the lexicon
 
             Word wordToSave = null;
+            Word existingWord = null;
 
             if (word.id() != null && !word.id().isBlank()) {
-                Word existingWord = wordDao.loadWord(word.id());
+                existingWord = wordDao.loadWord(word.id());
+            }
+
+            if (existingWord != null) {
                 // if a word already exists, only update if the user owns the word and the word is part of the specified lexicon
-                if (existingWord == null || (existingWord.owner().equals(username) && existingWord.lexiconId().equals(lexiconId))) {
+                if (existingWord.owner().equals(username) && existingWord.lexiconId().equals(lexiconId)) {
                     wordToSave = buildWordToSave(lexiconId, word, username, existingWord);
                     if (existingWord == null) {
                         newWordIds.add(wordToSave.id());
                     }
                 }
             } else {
-                Word duplicateWord = wordDao.findDuplicateWords(language, ownedLexiconIds, username, word);
-                if (duplicateWord != null) {
-                    // TODO: Return skipped duplicates with option to force?
-                    //wordsToAttach.add(duplicateWord);
-                } else {
+                Word duplicateWord = force ? null : wordDao.findDuplicateWords(language, ownedLexiconIds, username, word);
+                if (duplicateWord == null) {
                     wordToSave = buildWordToSave(lexiconId, word, username, null);
                     newWordIds.add(wordToSave.id());
                 }
             }
 
-            if (wordToSave != null && validateWord(language, wordToSave)) {
+            if (wordToSave != null && (force || validateWord(language, wordToSave))) {
                 wordsToSave.add(wordToSave);
             }
         }

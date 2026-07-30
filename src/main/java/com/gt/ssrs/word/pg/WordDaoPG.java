@@ -42,15 +42,10 @@ public class WordDaoPG implements WordDao {
             "SELECT id, lexicon_id, owner, attributes, " + String.join(", ", AVAILABLE_ELEMENTS) + ", create_seq_num, create_instant, update_instant " +
                     "FROM words " +
                     "WHERE id IN (:wordIds)";
-    private static final String CREATE_WORD_SQL_PREFIX =
+    private static final String CREATE_WORD_SQL =
             "INSERT INTO words (id, lexicon_id, owner, attributes, " + String.join(", ", AVAILABLE_ELEMENTS) + ") " +
-                    "SELECT :wordId as id, :lexiconId as lexicon_id, :owner as owner, :attributes as attributes, " + String.join(", ", AVAILABLE_ELEMENTS.stream().map(element -> ":" + element + " as " + element).toList()) + " " +
-                    "WHERE NOT EXISTS (SELECT 1 FROM words WHERE lexicon_id = :lexiconId AND owner = :owner";
-    private static final String CREATE_WORD_ELEMENTS_EXISTS_SQL =
-            " AND %s = :%s";
-    private static final String CREATE_WORD_CLOSING_SQL =
-            ") LIMIT 1 " +
-                    "ON CONFLICT DO NOTHING";
+            "SELECT :wordId as id, :lexiconId as lexicon_id, :owner as owner, :attributes as attributes, " + String.join(", ", AVAILABLE_ELEMENTS.stream().map(element -> ":" + element + " as " + element).toList()) + " " +
+            "ON CONFLICT DO NOTHING";
 
     private static final String FIND_DUPLICATE_WORD_IN_OTHER_LEXICONS_PREFIX =
             "WITH words AS " +
@@ -145,7 +140,7 @@ public class WordDaoPG implements WordDao {
 
     @Override
     public int createWord(Language language, String lexiconId, Word word) {
-        return template.update(getCreateWordSql(language), new MapSqlParameterSource(getWordParamMap(word)));
+        return template.update(CREATE_WORD_SQL, new MapSqlParameterSource(getWordParamMap(word)));
     }
 
     @Override
@@ -156,19 +151,9 @@ public class WordDaoPG implements WordDao {
             paramsList.add(new MapSqlParameterSource(getWordParamMap(word)));
         }
 
-        int[] updateCnts = template.batchUpdate(getCreateWordSql(language), paramsList.toArray(new MapSqlParameterSource[0]));
+        int[] updateCnts = template.batchUpdate(CREATE_WORD_SQL, paramsList.toArray(new MapSqlParameterSource[0]));
         return IntStream.range(0, updateCnts.length).mapToObj(i -> updateCnts[i] > 0 ? words.get(i) : null).filter(word -> word != null).toList();
 
-    }
-
-    private String getCreateWordSql(Language language) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(CREATE_WORD_SQL_PREFIX);
-        for(WordElement languageElement : language.getDedupeElements()) {
-            sb.append(String.format(CREATE_WORD_ELEMENTS_EXISTS_SQL, languageElement.getId(), languageElement.getId()));
-        }
-        sb.append(CREATE_WORD_CLOSING_SQL);
-        return sb.toString();
     }
 
     @Override

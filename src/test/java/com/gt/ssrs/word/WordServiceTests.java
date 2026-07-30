@@ -178,7 +178,7 @@ public class WordServiceTests {
         List<Word> savedWords = wordService.saveWords(
                 List.of(wordWithId, wordWithIdAlreadyExists, wordWithIdDifferentOwner, wordNoIdNoDuplicate,
                         wordNoIdWithDuplicate, wordNotSaved, wordFailingValidation, wordNotInLexiconWord),
-                TEST_LEXICON_METADATA.id(), TEST_USERNAME);
+                TEST_LEXICON_METADATA.id(), TEST_USERNAME, false);
 
         assertEquals(3, savedWords.size());
         for(Word savedWord : savedWords) {
@@ -215,12 +215,32 @@ public class WordServiceTests {
     }
 
     @Test
+    public void testSaveWords_Force() {
+        Word existingWord = new Word("", TEST_LEXICON_METADATA.id(), TEST_USERNAME, Map.of("kana", "e", "meaning", "e"), "e", List.of("e.mp3"), Instant.EPOCH, Instant.now());
+        Word duplicateWord = new Word("", TEST_LEXICON_METADATA.id(), TEST_USERNAME, Map.of("kana", "e", "meaning", "e"), "e", List.of("e.mp3"), Instant.EPOCH, Instant.now());
+        when(wordDao.findDuplicateWords(TEST_LANGUAGE, List.of(TEST_LEXICON_METADATA.id()), TEST_USERNAME, duplicateWord)).thenReturn(existingWord);
+
+        Word invalidWord = new Word(UUID.randomUUID().toString(), TEST_LEXICON_METADATA.id(), TEST_USERNAME, Map.of(), "e", List.of("e.mp3"), Instant.EPOCH, Instant.now());
+
+        when(wordDao.createWords(eq(TEST_LANGUAGE), eq(TEST_LEXICON_METADATA.id()), anyList())).then(args -> args.getArgument(2));
+
+        List<Word> savedWords = wordService.saveWords(
+                List.of(duplicateWord, invalidWord),
+                TEST_LEXICON_METADATA.id(),
+                TEST_USERNAME,
+                true);
+
+        assertEquals(2, savedWords.size());
+    }
+
+    @Test
     public void testSaveWords_NotOwnedLexicon() {
         try {
             wordService.saveWords(
                     List.of(new Word(UUID.randomUUID().toString(), TEST_LEXICON_METADATA.id(), "", Map.of("kana", " a", "meaning", "a"),"a", List.of("a.mp3"), null, null)),
                     TEST_LEXICON_METADATA.id(),
-                    "notTheOwningUsername");
+                    "notTheOwningUsername",
+                    false);
         } catch (UserAccessException ex) {
             return;
         }
