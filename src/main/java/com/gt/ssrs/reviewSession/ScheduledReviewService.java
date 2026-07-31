@@ -34,39 +34,61 @@ public class ScheduledReviewService {
         this.futureEventAllowedRatio = futureEventAllowedRatio;
     }
 
-    public int scheduleReviewsForHistory(String username, List<WordReviewHistory> wordReviewHistories) {
-        log.info("Saving new review history for {} words", wordReviewHistories.size());
-
-        Map<String, List<WordReviewHistory>> savedWordHistoriesByLexiconId = wordReviewHistories
-                .stream()
-                .filter(wordReviewHistory -> wordReviewHistory.learned())   // don't create histories if not yet learned
-                .collect(Collectors.groupingBy(lexiconReviewHistory -> lexiconReviewHistory.lexiconId()));
-
-        int updateCnt = 0;
-        for(Map.Entry<String, List<WordReviewHistory>> lexiconWordHistoryEntry : savedWordHistoriesByLexiconId.entrySet()) {
-            updateCnt += createOrUpdateScheduledReviewBatch(lexiconWordHistoryEntry.getKey(), username, lexiconWordHistoryEntry.getValue());
+    public int scheduleReviewsForHistory(String username, String lexiconId, List<WordReviewHistory> wordReviewHistories, List<ScheduledReview> scheduledReviews) {
+        if (wordReviewHistories.size() == 0) {
+            return 0;
         }
 
-        return updateCnt;
+        log.info("Saving new review history for {} words", wordReviewHistories.size());
+
+        List<WordReviewHistory> wordReviewHistoriesToSave = wordReviewHistories
+                .stream()
+                .filter(wordReviewHistory -> wordReviewHistory.learned())   // don't create histories if not yet learned
+                .toList();
+
+        Map<String, ScheduledReview> scheduledReviewsByWordId = scheduledReviews.stream()
+                .filter(scheduledReview -> !scheduledReview.completed() && scheduledReview.lexiconId().equals(lexiconId))
+                .map(scheduledReview -> withOwner(username, scheduledReview))
+                .collect(Collectors.toMap(scheduledReview -> scheduledReview.wordId(), scheduledReview -> scheduledReview));
+        
+        return createOrUpdateScheduledReviewBatch(lexiconId, username, wordReviewHistoriesToSave, scheduledReviewsByWordId);
     }
 
-    private int createOrUpdateScheduledReviewBatch(String lexiconId, String username, List<WordReviewHistory> lexiconWordHistories) {
+    private ScheduledReview withOwner(String username, ScheduledReview scheduledReview) {
+        return new ScheduledReview(
+                scheduledReview.id() == null || scheduledReview.id().isBlank() ? UUID.randomUUID().toString() : scheduledReview.id(),
+                username,
+                scheduledReview.lexiconId(),
+                scheduledReview.wordId(),
+                scheduledReview.reviewType(),
+                scheduledReview.testRelationshipId(),
+                scheduledReview.scheduledTestTime(),
+                scheduledReview.testDelay(),
+                scheduledReview.completed());
+    }
+
+    private int createOrUpdateScheduledReviewBatch(String lexiconId, String username, List<WordReviewHistory> wordReviewHistories, Map<String, ScheduledReview> scheduledReviewsByWordId) {
         Language language = Language.getLanguageById(lexiconService.getLexiconLanguageId(lexiconId));
 
-        List<String> wordHistoryWordIds = lexiconWordHistories.stream().map(WordReviewHistory::wordId).toList();
+        List<String> wordHistoryWordIds = wordReviewHistories.stream().map(WordReviewHistory::wordId).toList();
         Map<String, List<ScheduledReview>> existingScheduledReviews =
                 scheduledReviewDao.loadScheduledReviewsForWords(lexiconId, username, wordHistoryWordIds)
                         .stream()
                         .collect(Collectors.groupingBy(ScheduledReview::wordId));
 
         List<ScheduledReview> reviewsToSave = new ArrayList<>();
-        for(WordReviewHistory wordHistory : lexiconWordHistories) {
-            String idToUse = getReviewId(existingScheduledReviews.computeIfAbsent(wordHistory.wordId(), (wordId) -> List.of()));
+        for(WordReviewHistory wordReviewHistory : wordReviewHistories) {
+            ScheduledReview reviewToSave = scheduledReviewsByWordId.get(wordReviewHistory.wordId());
+            String idToUse = getIdToUse(reviewToSave, existingScheduledReviews.computeIfAbsent(wordReviewHistory.wordId(), (wordId) -> List.of()));
 
-            Instant nextTimeTime = wordHistory.mostRecentTestTime().plus(wordHistory.currentTestDelay());
-            String nextTestRelationshipId = WordReviewHelper.getNextTestRelationship(language, language.getReviewTestRelationships(), wordHistory);
+            if (reviewToSave != null) {
+                reviewToSave = withId(reviewToSave, idToUse);
+            } else {
+                log.warn("Building ScheduledReview from history");
+                reviewToSave = buildScheduledReviewFromHistory(idToUse, wordReviewHistory, language);
+            }
 
-            reviewsToSave.add(buildScheduledReviewFromHistory(idToUse, username, wordHistory, nextTimeTime, nextTestRelationshipId));
+            reviewsToSave.add(reviewToSave);
         }
 
         scheduledReviewDao.createScheduledReviewsBatch(reviewsToSave);
@@ -97,6 +119,10 @@ public class ScheduledReviewService {
         return scheduledReviewCounts;
     }
 
+    public List<ScheduledReview> getScheduledReviewForWords(String username, String lexiconId, List<String> wordIds) {
+        return scheduledReviewDao.loadScheduledReviewsForWords(username, lexiconId, wordIds);
+    }
+
     public void adjustNextReviewTimes(String lexiconId, Duration adjustment, String username) {
         verifyUserAccessAllowed(lexiconId, username);
 
@@ -119,19 +145,28 @@ public class ScheduledReviewService {
         scheduledReviewDao.deleteAllLexiconReviewEvents(lexiconId);
     }
 
-    private String getReviewId(List<ScheduledReview> scheduledReviews) {
-        for (ScheduledReview scheduledReview : scheduledReviews) {
+    private String getIdToUse(ScheduledReview newScheduledReview, List<ScheduledReview> existingScheduledReviews) {
+        for (ScheduledReview scheduledReview : existingScheduledReviews) {
             if (!scheduledReview.completed() && scheduledReview.reviewType() == ReviewType.Review) {
                 return scheduledReview.id();
             }
         }
 
+        if (newScheduledReview != null && newScheduledReview.id() != null && !newScheduledReview.id().isBlank()) {
+            return newScheduledReview.id();
+        }
+
         return UUID.randomUUID().toString();
     }
 
-    private ScheduledReview buildScheduledReviewFromHistory(String id, String username, WordReviewHistory wordHistory, Instant nextTestTime, String nextTestRelationship) {
-        return new ScheduledReview(id, username, wordHistory.lexiconId(), wordHistory.wordId(), ReviewType.Review, nextTestRelationship,
-                nextTestTime, Duration.between(wordHistory.mostRecentTestTime(), nextTestTime), false);
+    private ScheduledReview buildScheduledReviewFromHistory(String id, WordReviewHistory wordReviewHistory, Language language) {
+        String idToUse = id == null || id.isBlank() ? UUID.randomUUID().toString() : id;
+
+        Instant nextTestTime = wordReviewHistory.mostRecentTestTime().plus(wordReviewHistory.currentTestDelay());
+        String nextTestRelationshipId = WordReviewHelper.getNextTestRelationship(language, language.getReviewTestRelationships(), wordReviewHistory);
+
+        return new ScheduledReview(idToUse, wordReviewHistory.username(), wordReviewHistory.lexiconId(), wordReviewHistory.wordId(), ReviewType.Review, nextTestRelationshipId,
+                nextTestTime, Duration.between(wordReviewHistory.mostRecentTestTime(), nextTestTime), false);
     }
 
     public List<ScheduledReview> getCurrentScheduledReviewForLexicon(String lexiconId, String username, Optional<String> reviewRelationship, Optional<Instant> cutoffInstant) {
@@ -168,5 +203,27 @@ public class ScheduledReviewService {
             log.error(errMsg);
             throw new UserAccessException(errMsg);
         }
+    }
+
+    private ScheduledReview withId(ScheduledReview scheduledReview, String id) {
+        String idToUse;
+        if (id != null && !id.isBlank()) {
+            idToUse = id;
+        } else if (scheduledReview.id() != null && !scheduledReview.id().isBlank()) {
+            idToUse = scheduledReview.id();
+        } else {
+            idToUse = UUID.randomUUID().toString();
+        }
+
+        return new ScheduledReview(
+                idToUse,
+                scheduledReview.username(),
+                scheduledReview.lexiconId(),
+                scheduledReview.wordId(),
+                scheduledReview.reviewType(),
+                scheduledReview.testRelationshipId(),
+                scheduledReview.scheduledTestTime(),
+                scheduledReview.testDelay(),
+                scheduledReview.completed());
     }
 }

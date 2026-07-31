@@ -78,9 +78,16 @@ public class ReviewSessionController {
         return reviewEventProcessor.getLexiconReviewSummary(lexiconId, username, futureEventCutoff);
     }
 
+    @PostMapping(value = "/scheduledReviewForWords", produces = "application/json")
+    public List<ScheduledReview> getScheduledReviewForWords(@RequestBody GetScheduledReviewForWordsRequest request,
+                                                            @AuthenticatedUser String username) {
+        return scheduledReviewService.getScheduledReviewForWords(username, request.lexiconId, request.wordIds);
+    }
+
     public record GenerateLearningSessionRequest(String lexiconId, int wordCnt) { }
     public record GenerateReviewSessionRequest(String lexiconId, String testRelationship, int maxWordCnt, Optional<Instant> cutoff) { }
     public record AdjustNextReviewTimesRequest(String lexiconId, Duration adjustment) { }
+    public record GetScheduledReviewForWordsRequest(String lexiconId, List<String> wordIds) { }
 }
 
 

@@ -118,11 +118,10 @@ public class ScheduledReviewDaoDDB implements ScheduledReviewDao {
 
     public List<ScheduledReview> loadScheduledReviewsForWordsBatch(String username, String lexiconId, Collection<String> wordIds) {
         QueryEnhancedRequest request = QueryEnhancedRequest.builder()
-                .queryConditional(QueryConditional.sortGreaterThan(Key.builder()
-                        .partitionValue(lexiconId)
-                        .sortValue(username)
-                        .sortValue(ScheduledReviewStatus.SCHEDULED.name())
-                        .build()))
+                .queryConditional(QueryConditional.sortBeginsWith(k -> k
+                        .addPartitionValue(lexiconId)
+                        .addSortValue(username)
+                        .addSortValue(ScheduledReviewStatus.SCHEDULED.name())))
                 .filterExpression(buildWordIdFilterExpression(wordIds))
                 .scanIndexForward(true)
                 .build();

@@ -2,6 +2,7 @@ package com.gt.ssrs.reviewHistory;
 
 import com.gt.ssrs.auth.AuthenticatedUser;
 import com.gt.ssrs.delete.DeletionService;
+import com.gt.ssrs.model.ScheduledReview;
 import com.gt.ssrs.model.WordReviewHistory;
 import com.gt.ssrs.reviewHistory.converter.ClientWordReviewHistoryConverter;
 import com.gt.ssrs.reviewHistory.model.ClientWordReviewHistory;
@@ -39,16 +40,20 @@ public class WordReviewHistoryController {
     }
 
     @PostMapping(value = "/saveWordReviewHistoryBatch", consumes = "application/json", produces = "application/json")
-    public void saveLexiconWordHistoryBatch(@RequestBody List<ClientWordReviewHistory> lexiconWordHistories,
-                                            @AuthenticatedUser String username) {
+    public List<ClientWordReviewHistory> saveLexiconWordHistoryBatch(@RequestBody SaveReviewHistoryRequest request,
+                                                                     @AuthenticatedUser String username) {
 
-        List<WordReviewHistory> wordReviewHistoryToSave = lexiconWordHistories
+        List<WordReviewHistory> wordReviewHistoryToSave = request.wordReviewHistories()
                 .stream()
                 .map(clientWordReviewHistory -> ClientWordReviewHistoryConverter.convertClientWordReviewHistory(username, clientWordReviewHistory))
                 .collect(Collectors.toUnmodifiableList());
 
         List<WordReviewHistory> updatedHistory = wordReviewHistoryService.updateWordReviewHistoryBatch(username, wordReviewHistoryToSave);
-        scheduledReviewService.scheduleReviewsForHistory(username, updatedHistory);
+        scheduledReviewService.scheduleReviewsForHistory(username, request.lexiconId, updatedHistory, request.scheduledReviews());
+
+        return updatedHistory.stream()
+                .map(wordReviewHistory -> ClientWordReviewHistoryConverter.convertWordReviewHistory(wordReviewHistory))
+                .collect(Collectors.toList());
     }
 
     @PostMapping(value = "/resetLearningHistory", consumes = "application/json", produces = "application/json")
@@ -64,4 +69,5 @@ public class WordReviewHistoryController {
 
     public record GetLexiconReviewHistoryBatchRequest(String lexiconId, Collection<String> wordIds) { }
     public record ResetLearningHistoryRequest(String lexiconId, Collection<String> wordIds) { }
+    public record SaveReviewHistoryRequest(String lexiconId, List<ClientWordReviewHistory> wordReviewHistories, List<ScheduledReview> scheduledReviews) { }
 }

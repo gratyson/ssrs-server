@@ -62,6 +62,24 @@ public class ScheduledReviewServiceTests {
             List.of(),
             Instant.EPOCH,
             Instant.now());
+    private static final Word TEST_WORD_4 = new Word(
+            UUID.randomUUID().toString(),
+            TEST_LEXICON_ID,
+            TEST_USERNAME,
+            Map.of("kana", "かな4", "meaning", "kana4", "kanji", "仮名4"),
+            "n",
+            List.of(),
+            Instant.EPOCH,
+            Instant.now());
+    private static final Word TEST_WORD_5 = new Word(
+            UUID.randomUUID().toString(),
+            TEST_LEXICON_ID,
+            TEST_USERNAME,
+            Map.of("kana", "かな5", "meaning", "kana5", "kanji", "仮名5"),
+            "n",
+            List.of(),
+            Instant.EPOCH,
+            Instant.now());
 
     private static final double FUTURE_EVENT_ALLOWED_RATIO = .8;
 
@@ -82,26 +100,42 @@ public class ScheduledReviewServiceTests {
     public void testScheduleReviewsForHistory() {
         Instant reviewInstant = Instant.now();
         String word3ScheduledReviewId = UUID.randomUUID().toString();
+        String word4ScheduledReviewId = UUID.randomUUID().toString();
 
         List<WordReviewHistory> wordReviewHistories = List.of(
                 new WordReviewHistory(TEST_LEXICON_ID, TEST_USERNAME, TEST_WORD_1.id(), false, null, "", null, 0, null, null),
                 new WordReviewHistory(TEST_LEXICON_ID, TEST_USERNAME, TEST_WORD_2.id(), true, reviewInstant, "", Duration.ofHours(4), 0, null, null),
                 new WordReviewHistory(TEST_LEXICON_ID, TEST_USERNAME, TEST_WORD_3.id(), true, reviewInstant, TestRelationship.MeaningToKanji.getId(), Duration.ofHours(24), 0, null,
                         Map.of(TestRelationship.MeaningToKana.getId(), new TestHistory(1, 1, 1),
-                               TestRelationship.MeaningToKanji.getId(), new TestHistory(1, 1, 1))));
+                               TestRelationship.MeaningToKanji.getId(), new TestHistory(1, 1, 1))),
+                new WordReviewHistory(TEST_LEXICON_ID, TEST_USERNAME, TEST_WORD_4.id(), true, reviewInstant, "", Duration.ofHours(4), 0, null, null),
+                new WordReviewHistory(TEST_LEXICON_ID, TEST_USERNAME, TEST_WORD_5.id(), true, reviewInstant, "", Duration.ofHours(4), 0, null, null));
 
-        when(scheduledReviewDao.loadScheduledReviewsForWords(TEST_LEXICON_ID, TEST_USERNAME, List.of(TEST_WORD_1.id(), TEST_WORD_2.id(), TEST_WORD_3.id())))
-                .thenReturn(List.of(new ScheduledReview(word3ScheduledReviewId, TEST_USERNAME, TEST_LEXICON_ID, TEST_WORD_3.id(), ReviewType.Review, TestRelationship.MeaningToKanji.getId(), Instant.now(), Duration.ofHours(4), false)));
+        ScheduledReview wrongLexicon = new ScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, UUID.randomUUID().toString(), TEST_WORD_2.id(),
+                ReviewType.Review, TestRelationship.MeaningToKanji.getId(), Instant.now(), Duration.ofDays(2), true);
+        ScheduledReview completedReview = new ScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, TEST_LEXICON_ID, TEST_WORD_3.id(),
+                ReviewType.Review, TestRelationship.MeaningToKanji.getId(), Instant.now().plusSeconds(100000), Duration.ofDays(3), true);
+        ScheduledReview hasExistingReview = new ScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, TEST_LEXICON_ID, TEST_WORD_4.id(),
+                ReviewType.Review, TestRelationship.MeaningToKanji.getId(), Instant.now().plusSeconds(200000), Duration.ofDays(4), false);
+        ScheduledReview noExistingReview = new ScheduledReview(UUID.randomUUID().toString(), TEST_USERNAME, TEST_LEXICON_ID, TEST_WORD_5.id(),
+                ReviewType.Review, TestRelationship.MeaningToKanji.getId(), Instant.now().plusSeconds(300000), Duration.ofDays(5), false);
 
-        int updateCnt = scheduledReviewService.scheduleReviewsForHistory(TEST_USERNAME, wordReviewHistories);
+        List<ScheduledReview> reviewsToSchedule = List.of(wrongLexicon, completedReview, hasExistingReview, noExistingReview);
 
-        assertEquals(2, updateCnt);
+        when(scheduledReviewDao.loadScheduledReviewsForWords(TEST_LEXICON_ID, TEST_USERNAME, List.of(TEST_WORD_2.id(), TEST_WORD_3.id(), TEST_WORD_4.id(), TEST_WORD_5.id())))
+                .thenReturn(List.of(
+                        new ScheduledReview(word3ScheduledReviewId, TEST_USERNAME, TEST_LEXICON_ID, TEST_WORD_3.id(), ReviewType.Review, TestRelationship.MeaningToKanji.getId(), Instant.now(), Duration.ofHours(4), false),
+                        new ScheduledReview(word4ScheduledReviewId, TEST_USERNAME, TEST_LEXICON_ID, TEST_WORD_4.id(), ReviewType.Review, TestRelationship.KanjiToKana.getId(), Instant.now(), Duration.ofHours(4), false)));
+
+        int updateCnt = scheduledReviewService.scheduleReviewsForHistory(TEST_USERNAME, TEST_LEXICON_ID, wordReviewHistories, reviewsToSchedule);
+
+        assertEquals(4, updateCnt);
 
         ArgumentCaptor<List<ScheduledReview>> dbScheduledReviewCaptor = ArgumentCaptor.forClass(List.class);
         verify(scheduledReviewDao).createScheduledReviewsBatch(dbScheduledReviewCaptor.capture());
         List<ScheduledReview> captureDbScheduledReview = dbScheduledReviewCaptor.getValue();
 
-        assertEquals(2, captureDbScheduledReview.size());
+        assertEquals(4, captureDbScheduledReview.size());
         for(ScheduledReview dbScheduledReview : captureDbScheduledReview) {
 
             assertEquals(TEST_USERNAME, dbScheduledReview.username());
@@ -117,15 +151,14 @@ public class ScheduledReviewServiceTests {
                 assertEquals(TestRelationship.KanjiToKana.getId(), dbScheduledReview.testRelationshipId());
                 assertEquals(reviewInstant.plus(wordReviewHistories.get(2).currentTestDelay()), dbScheduledReview.scheduledTestTime());
                 assertEquals(wordReviewHistories.get(2).currentTestDelay(), dbScheduledReview.testDelay());
+            } else if (dbScheduledReview.wordId().equals(TEST_WORD_4.id())) {
+                assertScheduledReviewEquals(word4ScheduledReviewId, hasExistingReview, dbScheduledReview);
+            } else if (dbScheduledReview.wordId().equals(TEST_WORD_5.id())) {
+                assertScheduledReviewEquals(noExistingReview.id(), noExistingReview, dbScheduledReview);
             } else {
                 fail("History should not be saved for word " + dbScheduledReview.wordId());
             }
         }
-    }
-
-    @Test
-    public void testScheduleReviewsForHistory_NewScheduledReview() {
-
     }
 
     @Test
@@ -310,5 +343,17 @@ public class ScheduledReviewServiceTests {
         assertEquals(source.wordId(), scheduledWordReview.wordId());
         assertEquals(source.testRelationshipId(), scheduledWordReview.testRelationshipId());
         assertEquals(ReviewType.Review, scheduledWordReview.reviewType());
+    }
+
+    private void assertScheduledReviewEquals(String expectedId, ScheduledReview source, ScheduledReview scheduledWordReview) {
+        assertEquals(expectedId, scheduledWordReview.id());
+        assertEquals(source.username(), scheduledWordReview.username());
+        assertEquals(source.lexiconId(), scheduledWordReview.lexiconId());
+        assertEquals(source.wordId(), scheduledWordReview.wordId());
+        assertEquals(source.reviewType(), scheduledWordReview.reviewType());
+        assertEquals(source.testRelationshipId(), scheduledWordReview.testRelationshipId());
+        assertEquals(source.scheduledTestTime(), scheduledWordReview.scheduledTestTime());
+        assertEquals(source.testDelay(), scheduledWordReview.testDelay());
+        assertEquals(source.completed(), scheduledWordReview.completed());
     }
 }
