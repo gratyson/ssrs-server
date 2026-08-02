@@ -11,7 +11,8 @@ public class DDBLexiconConverter {
                 lexiconMetadataDDB.title(),
                 lexiconMetadataDDB.description(),
                 lexiconMetadataDDB.languageId(),
-                lexiconMetadataDDB.imageFileName());
+                lexiconMetadataDDB.imageFileName(),
+                lexiconMetadataDDB.ordinal());
     }
 
     public static DDBLexiconMetadata convertLexiconMetadata(LexiconMetadata lexiconMetadata) {
@@ -22,6 +23,7 @@ public class DDBLexiconConverter {
                 .description(lexiconMetadata.description())
                 .languageId(lexiconMetadata.languageId())
                 .imageFileName(lexiconMetadata.imageFileName())
+                .ordinal(lexiconMetadata.ordinal())
                 .build();
     }
 }

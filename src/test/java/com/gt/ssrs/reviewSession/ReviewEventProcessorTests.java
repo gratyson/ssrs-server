@@ -58,7 +58,7 @@ public class ReviewEventProcessorTests {
                 INITIAL_LEARNING_DELAY_SEC, CORRECT_NEAR_MISS_LEARNING_DELAY_SEC, STANDARD_INCORRECT_BOOST, NEAR_MISS_INCORRECT_BOOST);
 
         when(lexiconService.getLexiconMetadata(LEXICON_ID)).thenReturn(
-                new LexiconMetadata(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), ""));
+                new LexiconMetadata(LEXICON_ID, TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), "", null));
 
         Word reviewWord = buildWord(REVIEW_WORD_ID, Map.of("kana", "reviewKana", "meaning", "reviewMeaning", "kanji", "reviewKanji"));
         Word learningWord = buildWord(LEARNING_WORD_ID, Map.of("kana", "learningKana", "meaning", "learningMeaning", "kanji", "learningKanji"));

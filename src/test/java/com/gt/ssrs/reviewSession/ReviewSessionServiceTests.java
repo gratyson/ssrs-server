@@ -29,13 +29,14 @@ import static org.mockito.Mockito.*;
 public class ReviewSessionServiceTests {
 
     private static final String TEST_USERNAME = "testUser";
+    private static final int TEST_ORDINAL = 7;
     private static final String TEST_LEXICON_ID = UUID.randomUUID().toString();
     private static final String TEST_WORD_1_ID = UUID.randomUUID().toString();
     private static final String TEST_WORD_2_ID = UUID.randomUUID().toString();
     private static final String TEST_WORD_3_ID = UUID.randomUUID().toString();
     private static final Language TEST_LANGUAGE = Language.Japanese;
     private static final LexiconMetadata TEST_LEXICON_METADATA = new LexiconMetadata(TEST_LEXICON_ID, TEST_USERNAME, "Test Lexicon title",
-            "Test Lexicon description", TEST_LANGUAGE.getId(), "");
+            "Test Lexicon description", TEST_LANGUAGE.getId(), "", TEST_ORDINAL);
     private static final List<String> SIMILAR_ELEMENT_VALUES = List.of("A", "B", "C");
 
     @MockitoBean private ReviewEventDao reviewEventDao;

@@ -32,9 +32,10 @@ public class ScheduledReviewServiceTests {
     private static final Language TEST_LANGUAGE = Language.Japanese;
     private static final String TEST_USERNAME = "testUser";
     private static final String TEST_LEXICON_ID = UUID.randomUUID().toString();
+    private static final int TEST_ORDINAL = 7;
 
     private static final LexiconMetadata TEST_LEXICON_METADATA = new LexiconMetadata(TEST_LEXICON_ID, TEST_USERNAME, "Test Lexicon title",
-            "Test Lexicon description", TEST_LANGUAGE.getId(), "");
+            "Test Lexicon description", TEST_LANGUAGE.getId(), "", TEST_ORDINAL);
     private static final Word TEST_WORD_1 = new Word(
             UUID.randomUUID().toString(),
             TEST_LEXICON_ID,

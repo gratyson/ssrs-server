@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class LexiconDaoDDBTests {
 
     private static final String TEST_USERNAME = "testUser";
+    private static final int TEST_ORDINAL = 7;
 
     private static final LexiconMetadata OWNED_LEXICON_METADATA_1 = buildLexiconMetadata(TEST_USERNAME, "Lex1", "Lexicon 1", "image1.png");
     private static final LexiconMetadata OWNED_LEXICON_METADATA_2 = buildLexiconMetadata(TEST_USERNAME, "Lex2", "Lexicon 2", "image2.png");
@@ -93,7 +94,8 @@ public class LexiconDaoDDBTests {
                 "updated title",
                 "updated description",
                 Language.Japanese.getId(),
-                "updatedFile.png");
+                "updatedFile.png",
+                TEST_ORDINAL);
 
         assertEquals(1, lexiconDao.updateLexiconMetadata(TEST_USERNAME, updatedLexiconMetadata));
 
@@ -115,7 +117,8 @@ public class LexiconDaoDDBTests {
                 "updated title",
                 "updated description",
                 Language.Japanese.getId(),
-                "updatedFile.png");
+                "updatedFile.png",
+                TEST_ORDINAL);
 
         try {
             lexiconDao.updateLexiconMetadata("NotTheOwner", updatedLexiconMetadata);
@@ -137,7 +140,8 @@ public class LexiconDaoDDBTests {
                 "updated title",
                 "updated description",
                 Language.Japanese.getId(),
-                "updatedFile.png");
+                "updatedFile.png",
+                TEST_ORDINAL);
 
         try {
             lexiconDao.updateLexiconMetadata(TEST_USERNAME, updatedLexiconMetadata);
@@ -170,9 +174,10 @@ public class LexiconDaoDDBTests {
         assertEquals(expected.description(), actual.description());
         assertEquals(expected.languageId(), actual.languageId());
         assertEquals(expected.imageFileName(), actual.imageFileName());
+        assertEquals(expected.ordinal(), actual.ordinal());
     }
 
     private static LexiconMetadata buildLexiconMetadata(String owner, String title, String description, String imageFileName) {
-        return new LexiconMetadata(UUID.randomUUID().toString(), owner, title, description, Language.Japanese.getId(), imageFileName);
+        return new LexiconMetadata(UUID.randomUUID().toString(), owner, title, description, Language.Japanese.getId(), imageFileName, TEST_ORDINAL);
     }
 }

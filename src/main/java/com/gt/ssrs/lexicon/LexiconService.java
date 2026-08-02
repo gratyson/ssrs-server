@@ -102,7 +102,8 @@ public class LexiconService {
                 uploadedLexiconMetadata.title(),
                 uploadedLexiconMetadata.description(),
                 uploadedLexiconMetadata.languageId(),
-                !newImageFileName.isBlank() ? newImageFileName : uploadedLexiconMetadata.imageFileName());
+                !newImageFileName.isBlank() ? newImageFileName : uploadedLexiconMetadata.imageFileName(),
+                uploadedLexiconMetadata.ordinal());
     }
 
     private String updateImageBlobDataAsNeeded(String newId, LexiconMetadata lexiconMetadata, MultipartFile newImageFile) throws IOException {

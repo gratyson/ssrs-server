@@ -31,7 +31,8 @@ public class WordServiceTests {
 
     private static final Language TEST_LANGUAGE = Language.Japanese;
     private static final String TEST_USERNAME = "testuser";
-    private static final LexiconMetadata TEST_LEXICON_METADATA = new LexiconMetadata(UUID.randomUUID().toString(), TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), "");
+    private static final int TEST_ORDINAL = 7;
+    private static final LexiconMetadata TEST_LEXICON_METADATA = new LexiconMetadata(UUID.randomUUID().toString(), TEST_USERNAME, "Test Lexicon", "Test Lexicon", TEST_LANGUAGE.getId(), "", TEST_ORDINAL);
 
     private static final int INSTANT_NOW_ALLOWED_MARGIN_MILLIS = 50;
 

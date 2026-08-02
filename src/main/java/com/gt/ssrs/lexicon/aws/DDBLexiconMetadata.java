@@ -1,6 +1,5 @@
 package com.gt.ssrs.lexicon.aws;
 
-import com.gt.ssrs.word.aws.DDBWord;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 
 import java.time.Instant;
@@ -19,6 +18,7 @@ public class DDBLexiconMetadata {
     public static final String IMAGE_FILE_NAME_ATTRIBUTE_NAME = "imageFileName";
     public static final String CREATE_INSTANT_ATTRIBUTE_NAME = "createInstant";
     public static final String UPDATE_INSTANT_ATTRIBUTE_NAME = "updateInstant";
+    public static final String ORDINAL_ATTRIBUTE_NAME = "ordinal";
 
     private final String id;
     private final String owner;
@@ -28,6 +28,7 @@ public class DDBLexiconMetadata {
     private final String imageFileName;
     private final Instant createInstant;
     private final Instant updateInstant;
+    private final Integer ordinal;
 
     private DDBLexiconMetadata(Builder b) {
         this.id = b.id;
@@ -38,6 +39,7 @@ public class DDBLexiconMetadata {
         this.imageFileName = b.imageFileName;
         this.createInstant = b.createInstant;
         this.updateInstant = b.updateInstant;
+        this.ordinal = b.ordinal;
     }
 
     public static Builder builder() {
@@ -82,9 +84,14 @@ public class DDBLexiconMetadata {
         return createInstant;
     }
 
-    @DynamoDbAttribute(UPDATE_INSTANT_ATTRIBUTE_NAME    )
+    @DynamoDbAttribute(UPDATE_INSTANT_ATTRIBUTE_NAME)
     public Instant updateInstant() {
         return updateInstant;
+    }
+
+    @DynamoDbAttribute(ORDINAL_ATTRIBUTE_NAME)
+    public Integer ordinal() {
+        return ordinal;
     }
 
     @Override
@@ -98,6 +105,7 @@ public class DDBLexiconMetadata {
                 ", imageFileName='" + imageFileName + '\'' +
                 ", createInstant=" + createInstant +
                 ", updateInstant=" + updateInstant +
+                ", ordinal=" + ordinal +
                 '}';
     }
 
@@ -110,6 +118,7 @@ public class DDBLexiconMetadata {
         private String imageFileName;
         private Instant createInstant;
         private Instant updateInstant;
+        private Integer ordinal;
 
         private Builder() { }
 
@@ -154,6 +163,11 @@ public class DDBLexiconMetadata {
 
         public Builder updateInstant(Instant updateInstant) {
             this.updateInstant = updateInstant;
+            return this;
+        }
+
+        public Builder ordinal(Integer ordinal) {
+            this.ordinal = ordinal;
             return this;
         }
     }

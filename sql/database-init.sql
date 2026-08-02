@@ -284,6 +284,7 @@ CREATE TABLE IF NOT EXISTS lexicon_header
     update_instant timestamp with time zone,
     image_file_name character varying(255) COLLATE pg_catalog."default",
     owner character varying(255) COLLATE pg_catalog."default",
+    ordinal integer,
     CONSTRAINT lexicon_header_pkey PRIMARY KEY (id)
 )
 
